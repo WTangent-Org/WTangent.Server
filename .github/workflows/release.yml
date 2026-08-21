@@ -1,11 +1,6 @@
 name: release
 
-# Agent.Server 发布：release-please 管版本 → 合并后构建 agent-server 七平台 + web.zip → 上传 release
-on:
-  push:
-    branches: [main]
-name: release
-
+# WTangent.Server 发布：release-please 管版本 → 合并后构建 agent-server 七平台 + web.zip → 上传 release
 on:
   push:
     branches: [main]
