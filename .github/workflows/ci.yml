@@ -18,7 +18,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: dotnet build（Release）
-        run: dotnet build WtAgent.Server.csproj -c Release --nologo
+        run: dotnet build WTangent.Server.csproj -c Release --nologo
 
       - uses: actions/setup-node@v4
         with:

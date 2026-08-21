@@ -98,7 +98,7 @@ jobs:
             [osx-arm64]=agent-server-osx-arm64.zip
           )
           for rid in "${!rids[@]}"; do
-            dotnet publish WtAgent.Server.csproj -c Release -r $rid --self-contained false -o out/$rid
+            dotnet publish WTangent.Server.csproj -c Release -r $rid --self-contained false -o out/$rid
             # web UI 打进组件包：空壳解压时复制到 %APPDATA%\agent\web
             mkdir -p out/$rid/web
             cp -r web/dist/. out/$rid/web/

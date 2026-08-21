@@ -5,7 +5,7 @@
       "include-v-in-tag": true,
       "initial-version": "0.1.0",
       "extra-files": [
-        { "type": "xml", "path": "WtAgent.Server.csproj", "xpath": "//Version" }
+        { "type": "xml", "path": "WTangent.Server.csproj", "xpath": "//Version" }
       ],
       "changelog-sections": [
         { "type": "feat", "section": "✨ 新功能" },
