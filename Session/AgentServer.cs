@@ -190,6 +190,10 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
                 case "POST" when path == "/confirm":
                     await HandleConfirm(ctx);
                     return;
+                case "POST" when path == "/git-exec":
+                    // 远程 git 执行（GitCmd --server）：在服务端项目目录跑 git，返回输出/退出码
+                    await HandleGitExec(ctx);
+                    return;
                 default:
                     if (path.StartsWith("/git/", StringComparison.Ordinal))
                     {
@@ -395,6 +399,32 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
         }
         else WriteJson(ctx, 404, new { error = "confirm id not found" });
     }
+
+    /// <summary>远程 git 执行：POST /git-exec {project, args[]} → 在服务端项目目录跑 git → {exit_code, output}。
+    /// GitCmd 组件的 --server 模式调用（客户端触发服务端执行）。</summary>
+    private async Task HandleGitExec(HttpListenerContext ctx)
+    {
+        using var reader = new StreamReader(ctx.Request.InputStream);
+        var body = await reader.ReadToEndAsync();
+        GitExecRequest? req;
+        try { req = System.Text.Json.JsonSerializer.Deserialize<GitExecRequest>(body, AgentProtocol.Json); }
+        catch { WriteJson(ctx, 400, new { error = "bad json" }); return; }
+        if (req is null || string.IsNullOrWhiteSpace(req.Project) || req.Args is null)
+        {
+            WriteJson(ctx, 400, new { error = "project and args required" });
+            return;
+        }
+        var repoDir = Path.Combine(_projectsDir, req.Project);
+        if (!Directory.Exists(Path.Combine(repoDir, ".git")))
+        {
+            WriteJson(ctx, 404, new { error = $"project not found: {req.Project}" });
+            return;
+        }
+        var (code, output) = GitRunIn(repoDir, req.Args);
+        WriteJson(ctx, 200, new { exit_code = code, output });
+    }
+
+    private sealed record GitExecRequest(string Project, string[] Args);
 
     /// <summary>git smart HTTP：/git/{project}/{path} 转发给 git http-backend。
     /// **目录即仓库**：首次 push（receive-pack）自动建普通仓库（git init -b main + receive.denyCurrentBranch=updateInstead，
