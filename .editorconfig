@@ -1,0 +1,21 @@
+root = true
+
+[*.cs]
+# C# 14 / .NET 10 新特性提示 → warning（Rider 与 dotnet format 都生效）
+dotnet_diagnostic.IDE0300.severity = warning   # 使用集合表达式
+dotnet_diagnostic.IDE0301.severity = warning   # new[] 简化
+dotnet_diagnostic.IDE0305.severity = warning   # 简化集合初始化
+dotnet_diagnostic.IDE0290.severity = warning   # 使用主构造函数
+dotnet_diagnostic.IDE1006.severity = warning   # 命名规则冲突
+dotnet_diagnostic.IDE0044.severity = warning   # 只读字段
+dotnet_diagnostic.IDE0045.severity = warning   # if→条件表达式赋值（反转 if 族）
+dotnet_diagnostic.IDE0046.severity = warning   # if return→条件表达式（反转 if 族）
+dotnet_diagnostic.IDE0075.severity = warning   # 简化条件表达式
+dotnet_diagnostic.IDE0078.severity = warning   # 使用模式匹配（if/三元 → pattern）
+dotnet_diagnostic.IDE0019.severity = warning   # as+判空 → 模式匹配
+dotnet_diagnostic.IDE0020.severity = warning   # is+强转 → 模式匹配
+dotnet_diagnostic.IDE0066.severity = warning   # switch → switch 表达式
+dotnet_diagnostic.IDE0170.severity = warning   # 简化属性模式（嵌套）
+dotnet_diagnostic.CA1861.severity = warning    # static readonly 常量数组
+dotnet_diagnostic.CA1866.severity = warning    # StartsWith(char)
+dotnet_diagnostic.CA1068.severity = warning    # CancellationToken 最后参数

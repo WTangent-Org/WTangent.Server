@@ -1,0 +1,5 @@
+{
+  "name": "serve",
+  "type": "serve",
+  "asset": "agent-server"
+}

@@ -1,0 +1,7 @@
+<Project>
+  <!-- 全仓库共享 MSBuild 属性（自动导入所有项目，含未来新增） -->
+  <PropertyGroup>
+    <!-- 构建时运行代码风格分析（IDE 规则按 .editorconfig 严重级别输出到 dotnet build） -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+</Project>

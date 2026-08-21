@@ -1,0 +1,31 @@
+name: ci
+
+# 提交级构建检查：push main / 任何 PR（含 release-please PR）都编译验证，失败则禁止合并
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: dotnet build（Release）
+        run: dotnet build WtAgent.Server.csproj -c Release --nologo
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: web build
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build

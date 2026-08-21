@@ -1,0 +1,120 @@
+name: release
+
+# Agent.Server 发布：release-please 管版本 → 合并后构建 agent-server 七平台 + web.zip → 上传 release
+on:
+  push:
+    branches: [main]
+name: release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '手动指定版本（如 0.5.1；留空则按提交类型自动）'
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # 手动发版模式：仅 workflow_dispatch（手动）或 release PR 合并（创建 release）才跑 release-please；普通提交不发版
+      - name: 判断本次是否值得发版
+        id: should
+        run: |
+          MSG=$(git log -1 --format=%s)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "手动触发 → 发版"
+          elif echo "$MSG" | grep -qE '^chore\(main\): release'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "release PR 合并 → 创建 release"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "普通提交 → 不发版（要发版：Actions 页手动运行 release workflow）"
+          fi
+
+      - uses: googleapis/release-please-action@v4
+        if: steps.should.outputs.run == 'true'
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+          release-as: ${{ github.event.inputs.version }}
+
+      # 自动合并 release PR（PAT，绕过 GITHUB_TOKEN 限制）
+      - name: 自动合并 release PR（squash）
+        if: steps.release.outputs.prs != '' && steps.release.outputs.prs != '[]'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          PR_NUMBER=$(echo '${{ steps.release.outputs.prs }}' | python3 -c "import json,sys; prs=json.load(sys.stdin); print(prs[0]['number'])")
+          for i in $(seq 1 300); do
+            STATE=$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json mergeStateStatus --jq '.mergeStateStatus' 2>&1 || echo UNKNOWN)
+            echo "PR #$PR_NUMBER mergeState: $STATE"
+            if [ "$STATE" = "CLEAN" ]; then break; fi
+            sleep 5
+          done
+          gh pr merge "$PR_NUMBER" --repo "${{ github.repository }}" --squash --delete-branch
+          echo "已自动 squash 合并 release PR #$PR_NUMBER"
+
+  build:
+    runs-on: ubuntu-latest
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 构建 Web UI
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: 构建 agent-server 组件（framework-dependent zip，供空壳 ALC 加载）
+        run: |
+          mkdir -p out
+          declare -A rids=(
+            [win-x64]=agent-server-win-x64.zip
+            [win-arm64]=agent-server-win-arm64.zip
+            [linux-x64]=agent-server-linux-x86_64.zip
+            [linux-arm64]=agent-server-linux-aarch64.zip
+            [linux-arm]=agent-server-linux-arm.zip
+            [osx-x64]=agent-server-osx-x64.zip
+            [osx-arm64]=agent-server-osx-arm64.zip
+          )
+          for rid in "${!rids[@]}"; do
+            dotnet publish WtAgent.Server.csproj -c Release -r $rid --self-contained false -o out/$rid
+            # web UI 打进组件包：空壳解压时复制到 %APPDATA%\agent\web
+            mkdir -p out/$rid/web
+            cp -r web/dist/. out/$rid/web/
+            # 入口文件打进组件包：安装后 GetManifest 走本地缓存，不再依赖运行时网络
+            cp agent-component.json out/$rid/
+            (cd out/$rid && zip -qr ../${rids[$rid]} .)
+          done
+          ls -la out/
+
+      - name: 上传 release 资产
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: out/agent-server-*.zip

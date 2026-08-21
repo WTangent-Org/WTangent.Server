@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="McMaster.NETCore.Plugins" Version="2.0.0"/>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10"/>
+    <PackageReference Include="System.CommandLine" Version="2.0.10"/>
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.10"/>
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="9.0.0"/>
+    <!-- 覆盖传递依赖：Microsoft.Data.Sqlite 捆绑的 bundle_e_sqlite3 2.1.11 含 SQLite <3.50.2 漏洞（CVE-2025-6965，无补丁），显式提升到 2.1.12 -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- publish/ 是本地多仓工作区（含其他仓库的源码/obj），绝不入编译；deps/ 共享库仅作 Analyzer 引用 -->
+    <Compile Remove="publish/**;deps/**"/>
+    <None Remove="publish/**;deps/**"/>
+    <Content Remove="publish/**;deps/**"/>
+  </ItemGroup>
+
+
+  <PropertyGroup>
+    <!-- 组件 = 纯 dll（Library）：空壳 ALC 加载后经 Entry.Run(args) 调用；无独立可执行 -->
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- 版本号与 release tag 对齐；release-please 管理 -->
+    <Version>0.5.0</Version>
+    <RootNamespace>WTangent.Server</RootNamespace>
+    <AssemblyName>agent-server</AssemblyName>
+  </PropertyGroup>
+
+
+  <ItemGroup>
+    <!-- 共享包：源生成器（analyzers）+ 契约（lib/net10.0）一个包 -->
+    <PackageReference Include="WTangent.Components" Version="0.4.0" PrivateAssets="all"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="WTangent.Components"/>
+    <Using Include="WTangent.Core"/>
+  </ItemGroup>
+</Project>
