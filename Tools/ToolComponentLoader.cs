@@ -1,10 +1,11 @@
 using System.Reflection;
 using System.Text.Json;
+using WTangent.Core;
 
 namespace WTangent.Server.Tools;
 
-/// <summary>tool 类型组件加载器：serve 启动时扫描已装组件目录，
-/// 加载 manifest Type=="tool" 的组件，取其入口 Entry.Tools（ITool 列表）合并进工具列表。</summary>
+/// <summary>工具加载器：serve 启动时扫描已装组件目录，加载含 IEntry 的组件 dll，
+/// 取其 Entry.Tools（非空才收集）合并进工具列表。单组件失败跳过并警告，不阻断 serve。</summary>
 public static class ToolComponentLoader
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
@@ -13,54 +14,48 @@ public static class ToolComponentLoader
     private static string ComponentsDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "agent", "components");
 
-    /// <summary>加载所有 tool 组件提供的工具；单组件失败跳过并警告，不阻断 serve</summary>
+    /// <summary>加载所有组件提供的工具（IEntry.Tools 非空的组件）；单组件失败跳过并警告，不阻断 serve</summary>
     public static List<ITool> Load()
     {
         var result = new List<ITool>();
-        if (!Directory.Exists(ComponentsDir)) return result;
+        var app = Entry.App;   // 壳启动时已注入（StartAsync）
+        if (app is null || !Directory.Exists(ComponentsDir)) return result;
         foreach (var dir in Directory.GetDirectories(ComponentsDir))
         {
+            var manifestFile = Path.Combine(dir, "agent-component.json");
             ManifestInfo? manifest = null;
             try
             {
-                var manifestFile = Path.Combine(dir, "agent-component.json");
                 if (File.Exists(manifestFile))
                     manifest = JsonSerializer.Deserialize<ManifestInfo>(File.ReadAllText(manifestFile), JsonOpts);
             }
             catch { }
-            if (manifest is not { Type: "tool" }) continue;
+            if (manifest is null) continue;
 
             var dll = Path.Combine(dir, manifest.Asset + ".dll");
-            if (!File.Exists(dll))
-            {
-                Console.Error.WriteLine($"[serve] tool 组件 {manifest.Name} 缺少 {manifest.Asset}.dll，跳过");
-                continue;
-            }
+            if (!File.Exists(dll)) continue;
             try
             {
                 var asm = Assembly.LoadFrom(dll);
-                var entry = asm.GetTypes().FirstOrDefault(t => t is { Name: "Entry", IsPublic: true, IsAbstract: true, IsSealed: true });
-                if (entry is null)
+                var entryType = asm.GetTypes().FirstOrDefault(t => t is { IsPublic: true, IsAbstract: false }
+                    && typeof(IEntry).IsAssignableFrom(t));
+                if (entryType is null) continue;
+                var entry = (IEntry)Activator.CreateInstance(entryType)!;
+                entry.StartAsync(app).GetAwaiter().GetResult();
+                var tools = entry.Tools;
+                if (tools.Count > 0)
                 {
-                    Console.Error.WriteLine($"[serve] tool 组件 {manifest.Name} 缺少入口类型（public static class Entry），跳过");
-                    continue;
-                }
-                var prop = entry.GetProperty("Tools", BindingFlags.Public | BindingFlags.Static)
-                    ?? throw new InvalidOperationException("工具组件入口 Tools 属性缺失");
-                if (prop.GetValue(null) is IEnumerable<ITool> tools)
-                {
-                    var list = tools.ToList();
-                    Console.WriteLine($"[serve] 已加载 tool 组件 {manifest.Name}：{list.Count} 个工具（{string.Join(", ", list.Select(t => t.Name))}）");
-                    result.AddRange(list);
+                    Console.WriteLine($"[serve] 已加载 {manifest.Name} 工具：{tools.Count} 个（{string.Join(", ", tools.Select(t => t.Name))}）");
+                    result.AddRange(tools);
                 }
             }
             catch (Exception e)
             {
-                Console.Error.WriteLine($"[serve] 加载 tool 组件 {manifest.Name} 失败：{e.Message}");
+                Console.Error.WriteLine($"[serve] 加载组件 {manifest.Name} 工具失败：{e.Message}");
             }
         }
         return result;
     }
 
-    private sealed record ManifestInfo(string Name, string Type, string Asset);
+    private sealed record ManifestInfo(string Name, string Asset);
 }

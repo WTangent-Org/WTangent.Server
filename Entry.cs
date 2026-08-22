@@ -12,7 +12,7 @@ public sealed partial class Entry : IEntry
 
     public string Identifier => "serve";
     public string Name => "serve 服务";
-    public Command[] Commands => CollectedCommands;
+    public (Command Command, string? ParentPath)[] Commands => CollectedCommands;
 
     public Task StartAsync(Application app)
     {
