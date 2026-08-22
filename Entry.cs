@@ -1,29 +1,22 @@
-using System.CommandLine;
 using WTangent.Core;
 
 namespace WTangent.Server;
 
-/// <summary>serve 组件入口（手写实现 IEntry；生成器收集的命令经 CollectedCommands 接线）。
-/// 生命周期：StartAsync 存宿主注入的 Application（组件内静态访问 Entry.App）。</summary>
+/// <summary>serve 组件入口（[AgentEntry] 元数据 + [EntryStart]/[EntryStop] 钩子；
+/// 命令由生成器从 [AgentCommand] 收集）。</summary>
+[AgentEntry("serve", "serve 服务", false)]
 public sealed partial class Entry : IEntry
 {
     /// <summary>宿主运行时上下文（StartAsync 注入；组件内部静态访问）</summary>
     public static Application? App { get; private set; }
 
-    public string Identifier => "serve";
-    public string Name => "serve 服务";
-    public (Command Command, string? ParentPath)[] Commands => CollectedCommands;
-
-    public Task StartAsync(Application app)
+    [EntryStart]
+    private static void OnStart(Application app)
     {
         App = app;
         app.Logger.Info("serve 组件已启动");
-        return Task.CompletedTask;
     }
 
-    public Task StopAsync()
-    {
-        App = null;
-        return Task.CompletedTask;
-    }
+    [EntryStop]
+    private static void OnStop() => App = null;
 }

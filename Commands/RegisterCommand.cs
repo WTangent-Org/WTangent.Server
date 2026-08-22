@@ -7,7 +7,7 @@ namespace WTangent.Server.Commands;
 
 /// <summary>register/unregister：把「agent &lt;剩余参数&gt;」注册为开机自启（Win sc / Linux systemd）。
 /// 例：agent register serve --host 0.0.0.0 --projects %APPDATA%\agent\projects --web web —— 盒子重启自动起 serve。</summary>
-[AgentComponent]
+[AgentCommand]
 public sealed class RegisterCommand : Command
 {
     public RegisterCommand() : base("register", "注册开机自启（后面参数原样透传给 agent，缺省 serve）")
@@ -18,7 +18,7 @@ public sealed class RegisterCommand : Command
     }
 }
 
-[AgentComponent]
+[AgentCommand]
 public sealed class UnregisterCommand : Command
 {
     public UnregisterCommand() : base("unregister", "移除开机自启服务")

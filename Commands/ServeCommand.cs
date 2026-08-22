@@ -7,7 +7,7 @@ namespace WTangent.Server.Commands;
 
 
 /// <summary>serve 命令：agent serve [&lt;host&gt;] [&lt;port&gt;] [--projects ...] [--mock ...]</summary>
-[AgentComponent]
+[AgentCommand]
 public sealed class ServeCommand : Command
 {
     public ServeCommand() : base("serve", "启动服务：会话 API（WS/SSE）+ git 项目仓库 + Web UI（--help 看参数）")
