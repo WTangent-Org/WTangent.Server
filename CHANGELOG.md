@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.6.0](https://github.com/WTangent-Org/WTangent.Server/compare/v0.5.0...v0.6.0) (2026-08-22)
+
+
+### ✨ 新功能
+
+* AgentOptions.Tools 改为必须显式组装（ServerTools.Default 内置 + ToolComponentLoader 组件扩展） ([99c2dc0](https://github.com/WTangent-Org/WTangent.Server/commit/99c2dc0787c72d198cd8174ef98d4054d8701670))
+* git 双模式——本地透传 + --server 远程执行（serve 新增 /git-exec 端点） ([8578876](https://github.com/WTangent-Org/WTangent.Server/commit/8578876559ec13f9e5cac3283f1bd39775037821))
+* IEntry 元组命令（父路径挂接）+ 三形态（cmd/sub/tool）+ 类型字段废弃 ([ec6e0ac](https://github.com/WTangent-Org/WTangent.Server/commit/ec6e0ac887b435422158082d8260885e682b0948))
+* IEntry 手写入口（0.0.3）——类型字段废弃，能力由 Entry 声明（Commands/Default/Tools + StartAsync 生命周期） ([31f72c6](https://github.com/WTangent-Org/WTangent.Server/commit/31f72c6659130eaeb0642c14d62667f1c5dd60d0))
+* serve 服务组件（WTangent.Server 命名空间，WTangent.Components 单包） ([40686ba](https://github.com/WTangent-Org/WTangent.Server/commit/40686bac9737c6c0ef9d87b724cc5052bc27953a))
+* 组件类型收敛 ui/cmd/tool + client 组件拆分（remote/run/web 归 client；tui 纯 UI；serve type=cmd；官方组件自动安装） ([c47e130](https://github.com/WTangent-Org/WTangent.Server/commit/c47e130e45813cd78a27694fbd451db81fe8f246))
+
+
+### 🐛 修复
+
+* release.yml 重复 name/on 头部（workflow startup_failure） ([0dc4823](https://github.com/WTangent-Org/WTangent.Server/commit/0dc48236c3689cc0eee520651acb6927764a5982))
+
+
+### 🧹 其他
+
+* csproj 文件名统一 WTangent.*（workflow/release-please/deps 引用同步） ([34fce1b](https://github.com/WTangent-Org/WTangent.Server/commit/34fce1be494c12d7954b5bef2cd21564ad773f22))
+* WTangent.Components 0.0.1→0.0.2（Application 契约） ([3ccebe9](https://github.com/WTangent-Org/WTangent.Server/commit/3ccebe9310385ad22b2d0bc0419ec79ad8b1db10))
+* WTangent.Components 引用 0.4.0→0.0.1（对齐发布版本） ([775df6b](https://github.com/WTangent-Org/WTangent.Server/commit/775df6ba3f10f717f61874099bca8391de5e11b9))
+
 ## [0.5.0](https://github.com/wtommy932/WtAgent.Server/compare/v0.4.0...v0.5.0) (2026-08-19)
 
 
