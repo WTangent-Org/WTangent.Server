@@ -2,6 +2,7 @@ using System.Runtime.Versioning;
 using System.ServiceProcess;
 using WTangent.Server.Session;
 using WTangent.Server.Store;
+using WTangent.Server.Tools;
 
 namespace WTangent.Server;
 
@@ -45,6 +46,7 @@ public static class AgentServiceHost
         var opts = new AgentOptions
         {
             Provider = provider,
+            Tools = [.. ServerTools.Default(provider, mock ? false : null), .. Tools.ToolComponentLoader.Load()],
             Llm = mock ? new FakeLlmClient(
                 scriptedToolCalls: ["glob **/*.cs", "read_file Core/Agent/AgentCore.cs", "bash 1..10 | ForEach-Object { 'line ' + $_ }"],
                 finalText: ["## 结论\n\n服务模式 mock 回复。\n"]) : null,

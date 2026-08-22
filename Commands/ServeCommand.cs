@@ -59,8 +59,8 @@ public sealed class ServeCommand : Command
         var opts = new AgentOptions
         {
             Provider = provider,
-            // tool 类型组件扩展：扫描已装组件目录加载第三方 LLM 工具
-            MoreTools = ToolComponentLoader.Load(),
+            // 工具显式组装：内置默认 + 组件扩展（tool 组件，Entry.Tools）
+            Tools = [.. ServerTools.Default(provider, mock ? false : null), .. ToolComponentLoader.Load()],
             Llm = mock ? new FakeLlmClient(
                 scriptedToolCalls: ["glob **/*.cs", "read_file Core/Agent/AgentCore.cs", "bash 1..10 | ForEach-Object { 'line ' + $_ }"],
                 finalText: ["## 结论\n\n远程 serve mock 回复。\n"]) : null,

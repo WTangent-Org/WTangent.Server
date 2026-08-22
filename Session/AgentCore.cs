@@ -25,28 +25,8 @@ public record AgentOptions
     public int ContextBudgetChars { get; init; } = 120_000;
     /// <summary>初始历史（续聊时从持久化恢复），不含 system</summary>
     public IEnumerable<ChatMessage>? InitialHistory { get; init; }
-    /// <summary>自定义工具（追加到默认 bash + 文件工具）</summary>
-    public IReadOnlyList<ITool> MoreTools { get; init; } = [];
-    /// <summary>是否启用 web_search 工具：null = 按 Provider 自动判断（DeepSeek 官方端点支持原生搜索，其他不暴露）；
-    /// true/false 显式覆盖。</summary>
-    public bool? EnableWebSearch { get; init; }
-    // <summary>所有工具（默认工具 + 自定义工具）</summary>
-    public IReadOnlyList<ITool> Tools
-    {
-        get
-        {
-            var tools = new List<ITool>
-            {
-                new BashTool(), new BackgroundTool(), new ReadFileTool(), new GlobTool(), new GrepTool(),
-                new EditFileTool(), new GitCommitTool(), new WebFetchTool(), new RefSearchTool(),
-            };
-            var webSearch = EnableWebSearch
-                ?? Provider.BaseUrl.Contains("api.deepseek.com", StringComparison.OrdinalIgnoreCase);
-            if (webSearch) tools.Add(new WebSearchTool());
-            tools.AddRange(MoreTools);
-            return tools;
-        }
-    }
+    /// <summary>所有工具（必须显式组装：ServerTools.Default() 内置 + 组件扩展；扩展点显式化）</summary>
+    public required IReadOnlyList<ITool> Tools { get; init; }
     /// <summary>工具索引（Name → ITool）</summary>
     public Dictionary<string, ITool> ToolIndex => Tools.ToDictionary(t => t.Name);
     /// <summary>是否流式输出（MessageDelta 事件），默认开</summary>
