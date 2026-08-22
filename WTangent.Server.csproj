@@ -32,7 +32,7 @@
 
   <ItemGroup>
     <!-- 共享包：源生成器（analyzers）+ 契约（lib/net10.0）一个包 -->
-    <PackageReference Include="WTangent.Components" Version="0.0.2" PrivateAssets="all"/>
+    <PackageReference Include="WTangent.Components" Version="0.0.3" PrivateAssets="all"/>
   </ItemGroup>
 
   <ItemGroup>

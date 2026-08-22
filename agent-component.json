@@ -1,5 +1,1 @@
-{
-  "name": "serve",
-  "type": "cmd",
-  "asset": "agent-server"
-}
+{ "name": "serve", "asset": "agent-server" }
