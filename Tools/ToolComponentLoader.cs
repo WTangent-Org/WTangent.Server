@@ -18,7 +18,7 @@ public static class ToolComponentLoader
     public static List<ITool> Load()
     {
         var result = new List<ITool>();
-        var app = Entry.App;   // 壳启动时已注入（StartAsync）
+        var app = Entry.Current!.App;   // 壳启动时已注入（StartAsync）
         if (app is null || !Directory.Exists(ComponentsDir)) return result;
         foreach (var dir in Directory.GetDirectories(ComponentsDir))
         {
