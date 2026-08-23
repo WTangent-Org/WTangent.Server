@@ -26,14 +26,14 @@
 
 ## 命令
 
-- `wtangent install serve|tui|client|gui|git [--force]` / `wtangent remove|upgrade [name]`（缺省全部已装）/ `wtangent update`（刷索引）/ 顶级 `wtangent` = 按索引优先级取第一个已装且带 Default 的组件（headless 反转：无桌面 tui 优先）。
+- `wtangent install serve|tui|client|gui|git [--force]` / `wtangent remove|upgrade [name]`（缺省全部已装——**纯本地扫 `components\` 目录**；安装时写 `.installed` 元数据 repo+版本，remove/upgrade 不依赖索引）/ `wtangent update`（刷索引）/ 顶级 `wtangent` = 按索引优先级取第一个已装且带 Default 的组件（headless 反转：无桌面 tui 优先）。索引只是远程清单缓存，不代表已装状态。管理命令（install/remove/upgrade/update）启动时不加载组件（避免本进程锁 dll 导致删不动目录）。
 - serve 参数：`[<host>] [<port>] [--projects] [--web] [--no-web] [--base-url] [--key] [--model] [--mock]`；Windows 服务：`--service`（SCM 注入）。
 - 重名命令仅官方组件（serve/tui/gui）可覆盖，其余跳过并提示。
 
 ## 发布（手动发版）
 
 - 各仓 `release.yml`：**仅 Actions 手动触发或 release PR 合并**才发版；普通提交不发版。release-please 管版本（`always-bump-patch`，manifest + extra-files 同步 csproj Version），release PR 自动合并（RELEASE_TOKEN PAT）。CI 必须过（main 分支保护需 build check）。
-- 一键发版脚本：`.\release.ps1 [-Repo WTangent.Server] [-Version x.y.z]`——触发 workflow → 审批 release PR 的 CI → 等合并 → 等 publish → 等 nuget 索引就位（Components 发版后消费仓必须等索引再推，否则 CI restore 浮动到更高旧版本 NU1603）。
+- 一键发版脚本：工作区根 `release.ps1`（跨仓本地工具，**不进任何仓库**）：`.\release.ps1 [-Repo WTangent.Server] [-Version x.y.z]`——触发 workflow → 审批 release PR 的 CI → 等合并 → 等 publish → 等 nuget 索引就位（Components 发版后消费仓必须等索引再推，否则 CI restore 浮动到更高旧版本 NU1603）。
 - 组件产物：`dotnet publish -r {rid} --self-contained false` → 七平台 zip（`agent-server-win-x64.zip` 等；serve 另有 web.zip）；空壳产物：self-contained 单 exe。
 - 下载源：`https://github.com/WTangent-Org/{repo}/releases/latest/download/{asset}`。
 - 跨仓联调：本地包源 `D:\nuget-local`（各仓 nuget.config 已配）。Core 有改动时先 `dotnet pack -p:Version=<next> -o D:\nuget-local`，消费方升引用验证；**推送顺序：Components 先发 nuget.org，再推消费仓**（否则对方 CI restore 失败）。
@@ -41,7 +41,7 @@
 ## 本地工作区
 
 - `D:\Agent` = 六仓容器：`WTangent\`（空壳）、`WTangent.Server\`（本仓）、`WTangent.Tui\`、`WTangent.Client\`、`WTangent.GitCmd\`、`WTangent.Components\`、`box-backup\`（机顶盒刷机材料，勿删）。
-- 构建：本仓 `dotnet build WTangent.Server.csproj`（或 `.\build.ps1`：杀残留进程 + build）。**注意 `build.ps1 -Mock` 是旧 exe 时代残留**：agent-server 已是纯 dll，无 runtimeconfig，`dotnet agent-server.dll` 直接报错，待修。
+- 构建：本仓 `dotnet build WTangent.Server.csproj`。
 - 根 `Agent.slnx` 聚合各仓项目。
 
 ## 环境铁律（Windows + PowerShell）
@@ -49,7 +49,7 @@
 - 每次命令行先切 UTF-8：`chcp 65001 | Out-Null; [Console]::OutputEncoding=[Text.Encoding]::UTF8; $OutputEncoding=[Text.Encoding]::UTF8`
 - 含中文的文件用 Read 工具读取，勿用 Get-Content 看乱码
 - **`agent run` 会烧 API 配额**，调试走代码走查/mock（serve `--mock`，经空壳起）
-- 格式化用 `.\format.ps1`（dotnet format 自动修复 + build）
+- 格式化：`dotnet format WTangent.Server.csproj style` + `analyzers --severity warn`（自动修复），之后 `dotnet build` 验证
 - 风格提示全量提为 warning：`.editorconfig` + `Directory.Build.props`（EnforceCodeStyleInBuild）→ `dotnet build` 直接输出全部风格警告
 - 命名空间必须跟随文件夹；代码贴合 C# 14/.NET 10（`field` 关键字、扩展成员 extension blocks、集合表达式、主构造函数、record）——能用新特性就用，别写旧式样板
 

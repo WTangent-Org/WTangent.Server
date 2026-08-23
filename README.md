@@ -32,7 +32,7 @@ wtagent serve
 
 ## 开发
 
-- `dotnet build WtAgent.Server.csproj`（或 `.\build.ps1`，`-Mock` 冒烟）
+- `dotnet build WTangent.Server.csproj`
 - 组件入口：命令类标 `[AgentComponent]` → 源生成器自动生成 `Entry.Commands`；顶级行为用 `[AgentDefault]`
 - 内置工具：bash / read_file / glob / grep / refs（符号引用）/ edit_file / web_fetch / web_search …
 - 版本手动指定，**手动发版**（Actions 页 run release workflow，可填版本号）
