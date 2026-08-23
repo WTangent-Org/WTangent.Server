@@ -51,7 +51,7 @@
 - **`agent run` 会烧 API 配额**，调试走代码走查/mock（serve `--mock`，经空壳起）
 - 格式化用 `.\format.ps1`（dotnet format 自动修复 + build）
 - 风格提示全量提为 warning：`.editorconfig` + `Directory.Build.props`（EnforceCodeStyleInBuild）→ `dotnet build` 直接输出全部风格警告
-- 命名空间必须跟随文件夹；代码贴合 C# 14/.NET 10（`field`、集合表达式、主构造函数、record）
+- 命名空间必须跟随文件夹；代码贴合 C# 14/.NET 10（`field` 关键字、扩展成员 extension blocks、集合表达式、主构造函数、record）——能用新特性就用，别写旧式样板
 
 ## 已知遗留（待清理）
 
