@@ -33,6 +33,7 @@
 ## 发布（手动发版）
 
 - 各仓 `release.yml`：**仅 Actions 手动触发或 release PR 合并**才发版；普通提交不发版。release-please 管版本（`always-bump-patch`，manifest + extra-files 同步 csproj Version），release PR 自动合并（RELEASE_TOKEN PAT）。CI 必须过（main 分支保护需 build check）。
+- 一键发版脚本：`.\release.ps1 [-Repo WTangent.Server] [-Version x.y.z]`——触发 workflow → 审批 release PR 的 CI → 等合并 → 等 publish → 等 nuget 索引就位（Components 发版后消费仓必须等索引再推，否则 CI restore 浮动到更高旧版本 NU1603）。
 - 组件产物：`dotnet publish -r {rid} --self-contained false` → 七平台 zip（`agent-server-win-x64.zip` 等；serve 另有 web.zip）；空壳产物：self-contained 单 exe。
 - 下载源：`https://github.com/WTangent-Org/{repo}/releases/latest/download/{asset}`。
 - 跨仓联调：本地包源 `D:\nuget-local`（各仓 nuget.config 已配）。Core 有改动时先 `dotnet pack -p:Version=<next> -o D:\nuget-local`，消费方升引用验证；**推送顺序：Components 先发 nuget.org，再推消费仓**（否则对方 CI restore 失败）。
