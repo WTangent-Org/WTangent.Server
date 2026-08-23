@@ -8,7 +8,7 @@ namespace WTangent.Server;
 public sealed partial class Entry : IEntry
 {
     [EntryStart]
-    private static void OnStart(Application app) => app.Logger.Info("serve 组件已启动");
+    private static void OnStart(Application app) => Log.Info("serve 组件已启动");
 
     [EntryStop]
     private static void OnStop() { }
