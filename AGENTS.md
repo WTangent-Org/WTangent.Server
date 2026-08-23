@@ -22,6 +22,7 @@
 - 组件依赖解析：`AssemblyDependencyResolver`（各组件自己的 `deps.json`，确定性、按组件隔离版本），注册于 `TryLoadComponent`；`Resolving` 事件兜底按名直扫组件目录（无 deps.json 的旧包）。
 - 版本门禁：`agent-component.json` 的 `minCore` = 组件编译时引用的 Core 版本，**由生成器构建时自动写入（勿手改，该文件整体由生成器产出：name/asset/minCore/commands/tools）**；install/upgrade 时与空壳内置 Core 版本（`ComponentManager.CoreVersion`）比较，不足则拒绝并提示升级空壳（重跑 `install.ps1`/`install.sh`）。
 - 双副本唯一来源 = 新建自定义 `AssemblyLoadContext`。真要建（插件隔离/卸载），必须把 Core 共享回 Default（McMaster `PreferSharedTypes` 或等价配置），否则类型同一性崩（`InvalidCastException` A→A）+ 静态分叉。
+- **Core 只加不删**：minCore 门禁只挡"新组件进旧空壳"，挡不住"旧组件进新空壳"（升级常态）。旧组件按老 Core 编译，删成员 = 运行时 `MissingMethodException`。要淘汰的成员标 `[Obsolete]` 引导，永不删除。
 
 ## 命令
 
