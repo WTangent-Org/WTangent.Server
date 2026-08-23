@@ -33,7 +33,7 @@
   <ItemGroup>
     <!-- 共享包：源生成器（analyzers）+ 契约（lib/net10.0）一个包；
          ExcludeAssets=runtime：Core 由空壳运行时提供（单 ALC 统一），不拷进组件输出/zip，编译引用与生成器保留 -->
-    <PackageReference Include="WTangent.Components" Version="0.0.9" PrivateAssets="all" ExcludeAssets="runtime"/>
+    <PackageReference Include="WTangent.Components" Version="0.0.10" PrivateAssets="all" ExcludeAssets="runtime"/>
   </ItemGroup>
 
   <ItemGroup>
