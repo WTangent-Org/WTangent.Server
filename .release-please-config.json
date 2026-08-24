@@ -4,6 +4,7 @@
       "release-type": "simple",
       "include-v-in-tag": true,
       "initial-version": "0.1.0",
+      "versioning": "always-bump-patch",
       "extra-files": [
         { "type": "xml", "path": "WTangent.Server.csproj", "xpath": "//Version" }
       ],
