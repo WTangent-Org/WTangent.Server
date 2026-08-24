@@ -101,7 +101,7 @@ public sealed class BashTool : ITool
         // 交互：写入 input；否则关闭 stdin 防等待
         if (input != null)
         {
-            try { await proc.StandardInput.WriteAsync(input); await proc.StandardInput.FlushAsync(ct); } catch { }
+            try { await proc.StandardInput.WriteAsync(input); await proc.StandardInput.FlushAsync(ct); } catch (IOException) { }
         }
         else
         {
@@ -177,7 +177,7 @@ public sealed class BashTool : ITool
         {
             if (!proc.HasExited) proc.Kill(entireProcessTree: true);
         }
-        catch { }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException) { }
     }
 
     /// <summary>Windows shell：pwsh 优先 → 系统自带 powershell.exe（Win10+ 必有，无需 cmd 兜底）</summary>

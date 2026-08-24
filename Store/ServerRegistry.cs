@@ -48,7 +48,7 @@ public sealed class ServerRegistry(string? path = null)
     public static void SetLastUsed(string nameOrUrl)
     {
         try { Directory.CreateDirectory(Path.GetDirectoryName(LastUsedFile)!); File.WriteAllText(LastUsedFile, nameOrUrl); }
-        catch { }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 
     private List<RemoteEntry> Load()
@@ -88,6 +88,8 @@ public sealed class ServerRegistry(string? path = null)
 
     private sealed record OldRemote(string Name, string Url, string? EtCode, string Kind);
 
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+
     private void Save(List<RemoteEntry> all) =>
-        File.WriteAllText(StorePath, JsonSerializer.Serialize(all, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(StorePath, JsonSerializer.Serialize(all, JsonOpts));
 }

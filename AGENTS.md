@@ -11,8 +11,9 @@
 
 ## 组件契约（签名稳定）
 
-- 入口类：`[AgentEntry("id", "名称", isAsync)]` + `partial Entry : IEntry`。生成器产出：静态 `Entry.App`（构造注入）、`Commands`（`[AgentCommand]` 收集）、`Tools`（`[AgentTool]`）、事件订阅接线（`[AgentEvent]`）、`[EntryStart]`/`[EntryStop]` 钩子调用。
+- 入口类：`[AgentEntry("id", "名称", isAsync)]` + `partial Entry : IEntry`。生成器产出：静态 `Entry.App`（构造注入）、`Commands`（`[AgentCommand]` 收集）、`Tools`（`[AgentTool]`）、事件订阅接线（`[AgentEvent]`）、`[EntryStart]`/`[EntryStop]` 钩子调用（**钩子无参数**，上下文用 `Entry.App`）。
 - 能力声明式（`IEntry` 默认空实现）：`Commands` 非空 → 注册到空壳命令树（父路径挂接如 `"root/remote"`）；`Default` 非空 → 顶级行为；`Tools` 非空 → serve 启动时合并进 LLM 工具表。
+- 启动分流（空壳 `ComponentManager.StartEntry`，PCL-CE 式）：`isAsync`（→ `SupportAsyncStart`）= true → `Task.Run` 后台并行启动、全部注册完统一 await；false（默认）→ 当前线程串行启动。空壳先 `LoadEntry` 只构造不启动，再统一 `StartEntry`。
 - 运行时上下文 `Application`：Logger/Events/Config/Store/Remote/GuiHost/Http/Services，宿主实现、注入每个组件（同一实例）。组件间不互引 dll，协作全走 App。
 - 日志/配置门面：任意位置 `Log.Info(...)` / `Config.Get<T>(key)`（Core 全局静态门面，宿主 `BuildApp` 时 `Log.Init`/`Config.Init`；未 Init 时 Log 退化 Console、Config 退化进程内存）。**门面在 WTangent.Components ≥ 0.0.9 才有**，组件引用升到 0.0.9 后方可使用。
 

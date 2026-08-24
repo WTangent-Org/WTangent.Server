@@ -19,7 +19,6 @@ namespace WTangent.Server.Session;
 public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir = null, string host = "127.0.0.1", string? webRoot = null)
 {
     private readonly string _projectsDir = projectsDir ?? Path.Combine(AgentPaths.DataDir, "projects");
-    private readonly string? _webRoot = webRoot;
     private readonly SessionStore _store = new();
     private readonly Dictionary<string, AgentCore> _sessions = [];
     private readonly ConcurrentDictionary<string, bool> _activeTurns = new();
@@ -65,7 +64,8 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
         }
         finally
         {
-            try { File.Delete(Path.Combine(AgentPaths.DataDir, "serve.port")); } catch { }
+            try { File.Delete(Path.Combine(AgentPaths.DataDir, "serve.port")); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
             ConfirmProvider.Confirm = ConfirmProvider.DefaultConfirm;
         }
     }
@@ -316,9 +316,11 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
         {
             agent.Events = null;
             if (_turnCts.TryRemove(sessionId, out var tc)) await tc.CancelAsync();
-            try { if (_pendingTurn is not null) await _pendingTurn; } catch { }   // 等轮次结束再 Dispose bridge
+            try { if (_pendingTurn is not null) await _pendingTurn; }
+            catch (OperationCanceledException) { }   // 等轮次结束再 Dispose bridge
             bridge.Dispose();
-            try { await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None); } catch { }
+            try { await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None); }
+            catch (WebSocketException) { }
         }    }
 
     /// <summary>WS 会话的单轮执行（Task.Run 里跑）：LLM 问答 → 落库 → 事件收尾。
@@ -407,7 +409,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
         using var reader = new StreamReader(ctx.Request.InputStream);
         var body = await reader.ReadToEndAsync();
         GitExecRequest? req;
-        try { req = System.Text.Json.JsonSerializer.Deserialize<GitExecRequest>(body, AgentProtocol.Json); }
+        try { req = JsonSerializer.Deserialize<GitExecRequest>(body, AgentProtocol.Json); }
         catch { WriteJson(ctx, 400, new { error = "bad json" }); return; }
         if (req is null || string.IsNullOrWhiteSpace(req.Project) || req.Args is null)
         {
@@ -424,7 +426,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
         WriteJson(ctx, 200, new { exit_code = code, output });
     }
 
-    private sealed record GitExecRequest(string Project, string[] Args);
+    private sealed record GitExecRequest(string? Project, string[]? Args);
 
     /// <summary>git smart HTTP：/git/{project}/{path} 转发给 git http-backend。
     /// **目录即仓库**：首次 push（receive-pack）自动建普通仓库（git init -b main + receive.denyCurrentBranch=updateInstead，
@@ -518,7 +520,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
                 .Select(d => Path.GetFileName(d))];
 
     /// <summary>WUI 设置：写 config.json 的 auto_optimize（POST /config，body {"auto_optimize": bool}）</summary>
-    private async Task HandleConfig(HttpListenerContext ctx)
+    private static async Task HandleConfig(HttpListenerContext ctx)
     {
         try
         {
@@ -653,11 +655,11 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
     /// <summary>静态托管（Vue WUI dist）：GET 回退到 webRoot；SPA 路由回退 index.html。</summary>
     private async Task HandleStatic(HttpListenerContext ctx, string path)
     {
-        if (_webRoot is null || !Directory.Exists(_webRoot)) { WriteJson(ctx, 404, new { error = "not found" }); return; }
+        if (webRoot is null || !Directory.Exists(webRoot)) { WriteJson(ctx, 404, new { error = "not found" }); return; }
         var rel = path == "/" ? "index.html" : path.TrimStart('/');
         if (rel.Contains("..", StringComparison.Ordinal)) { WriteJson(ctx, 400, new { error = "bad path" }); return; }
-        var file = Path.Combine(_webRoot, rel);
-        if (!File.Exists(file)) file = Path.Combine(_webRoot, "index.html");
+        var file = Path.Combine(webRoot, rel);
+        if (!File.Exists(file)) file = Path.Combine(webRoot, "index.html");
         if (!File.Exists(file)) { WriteJson(ctx, 404, new { error = "not found" }); return; }
         ctx.Response.ContentType = MimeOf(Path.GetExtension(file));
         ctx.Response.ContentLength64 = new FileInfo(file).Length;
@@ -700,7 +702,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
 
     private (int ExitCode, string Output) GitRun(params string[] args) => GitRunIn(_projectsDir, args);
 
-    private (int ExitCode, string Output) GitRunIn(string cwd, params string[] args)
+    private static (int ExitCode, string Output) GitRunIn(string cwd, params string[] args)
     {
         try
         {

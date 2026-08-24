@@ -76,12 +76,12 @@ public sealed class ServeCommand : Command
                 {
                     UseShellExecute = false,
                 });
-                p?.WaitForExit();
+                if (p is not null) await p.WaitForExitAsync();
                 webDir = AgentServer.FindWebDir();
             }
             catch (Exception e)
             {
-                Console.Error.WriteLine($"[serve] 自动下载 web 失败（可手动 agent install web）：{e.Message}");
+                await Console.Error.WriteLineAsync($"[serve] 自动下载 web 失败（可手动 agent install web）：{e.Message}");
             }
         }
         var server = new AgentServer(opts, port > 0 ? port : 8890, projects, host ?? "127.0.0.1", webDir);

@@ -47,14 +47,14 @@ public static class RegisterHandler
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            var unit = $$"""
+            var unit = $"""
                 [Unit]
                 Description=Agent serve
                 After=network.target
 
                 [Service]
                 Type=simple
-                ExecStart={{bin}}
+                ExecStart={bin}
                 Restart=on-failure
 
                 [Install]
@@ -80,7 +80,7 @@ public static class RegisterHandler
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                try { Run("sc.exe", ["stop", ServiceName]); } catch { }
+                try { Run("sc.exe", ["stop", ServiceName]); } catch (InvalidOperationException) { }
                 Run("sc.exe", ["delete", ServiceName]);
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -106,12 +106,12 @@ public static class RegisterHandler
             UseShellExecute = false,
         };
         foreach (var a in args) psi.ArgumentList.Add(a);
-        using var p = Process.Start(psi) ?? throw new Exception($"无法启动 {file}");
+        using var p = Process.Start(psi) ?? throw new InvalidOperationException($"无法启动 {file}");
         if (stdin != null) p.StandardInput.Write(stdin);
         p.StandardInput.Close();
         p.WaitForExit();
         if (p.ExitCode == 0) return;
         var err = p.StandardError.ReadToEnd();
-        throw new Exception($"{file} 失败 ({p.ExitCode}): {err}");
+        throw new InvalidOperationException($"{file} 失败 ({p.ExitCode}): {err}");
     }
 }

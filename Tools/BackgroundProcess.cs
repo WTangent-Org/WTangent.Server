@@ -8,7 +8,7 @@ public static class BackgroundProcess
     private sealed class Entry
     {
         public required ProcessHandle Proc { get; init; }
-        public long StartedAt { get; init; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        public long StartedAt { get; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
 
     private static readonly ConcurrentDictionary<int, Entry> Procs = new();
@@ -42,17 +42,14 @@ public static class BackgroundProcess
 /// <summary>后台进程句柄：持有进程引用 + 可查询输出</summary>
 public sealed class ProcessHandle(System.Diagnostics.Process proc, Task<string> outTask, Task<string> errTask)
 {
-    private readonly System.Diagnostics.Process _proc = proc;
-    private readonly Task<string> _outTask = outTask;
-    private readonly Task<string> _errTask = errTask;
-
-    public int Id => _proc.Id;
-    public bool Running => !_proc.HasExited;
-    public int ExitCode => _proc.HasExited ? _proc.ExitCode : -1;
-    public string Output => $"{(_outTask.IsCompleted ? _outTask.Result : "")}{(_errTask.IsCompleted ? _errTask.Result : "")}";
+    public int Id => proc.Id;
+    public bool Running => !proc.HasExited;
+    public int ExitCode => proc.HasExited ? proc.ExitCode : -1;
+    public string Output => $"{(outTask.IsCompleted ? outTask.Result : "")}{(errTask.IsCompleted ? errTask.Result : "")}";
 
     public void Kill()
     {
-        try { if (!_proc.HasExited) _proc.Kill(entireProcessTree: true); } catch { }
+        try { if (!proc.HasExited) proc.Kill(entireProcessTree: true); }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException) { }
     }
 }

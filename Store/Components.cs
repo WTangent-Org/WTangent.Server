@@ -23,6 +23,8 @@ public sealed class Components
         catch { return new Components(); }
     }
 
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+
     public void Save() =>
-        File.WriteAllText(Path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path, JsonSerializer.Serialize(this, JsonOpts));
 }

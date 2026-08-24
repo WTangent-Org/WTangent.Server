@@ -61,7 +61,7 @@ public sealed partial class WebFetchTool : ITool
     {
         var s = html;
         // 去掉 script/style/noscript 块
-        s = ScriptStyleRegex().Replace(s, "");
+        s = ScriptStyleRegex.Replace(s, "");
         // 块级标签 → 换行
         s = BlockTagRegex().Replace(s, "\n");
         // 去掉剩余标签
@@ -73,13 +73,13 @@ public sealed partial class WebFetchTool : ITool
         return s.Trim();
     }
 
-    [GeneratedRegex(@"(?is)<(script|style|noscript)[^>]*>.*?</\1>")]
-    private static partial Regex ScriptStyleRegex();
+    // 反向引用 \1 超出 regex 源生成器能力（SYSLIB1044），保留运行时构造
+    private static readonly Regex ScriptStyleRegex = new(@"(?is)<(script|style|noscript)[^>]*>.*?</\1>");
 
-    [GeneratedRegex(@"(?i)</?(p|div|br|li|tr|h[1-6]|pre|blockquote|table)[^>]*>")]
+    [GeneratedRegex("(?i)</?(p|div|br|li|tr|h[1-6]|pre|blockquote|table)[^>]*>")]
     private static partial Regex BlockTagRegex();
 
-    [GeneratedRegex(@"<[^>]+>")]
+    [GeneratedRegex("<[^>]+>")]
     private static partial Regex AnyTagRegex();
 
     [GeneratedRegex(@"\n{3,}")]

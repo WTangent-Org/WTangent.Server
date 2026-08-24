@@ -124,7 +124,7 @@ public class LlmClient(ProviderConfig provider) : ILlmClient
     /// cacheRead = prompt_tokens_details.cached_tokens ?? prompt_cache_hit_tokens；reasoning = completion_tokens_details.reasoning_tokens。</summary>
     private static TokenUsage ParseUsage(JsonElement? usage)
     {
-        if (usage is not { } u || u.ValueKind != JsonValueKind.Object) return new();
+        if (usage is not { ValueKind: JsonValueKind.Object } u) return new TokenUsage();
         var prompt = GetInt(u, "prompt_tokens");
         var completion = GetInt(u, "completion_tokens");
         var cacheRead = 0;
@@ -263,8 +263,9 @@ public class LlmClient(ProviderConfig provider) : ILlmClient
     private static async Task EnsureSuccessAsync(HttpResponseMessage resp, string model)
     {
         if (resp.IsSuccessStatusCode) return;
-        string detail = "";
-        try { detail = await resp.Content.ReadAsStringAsync(); } catch { }
+        var detail = "";
+        try { detail = await resp.Content.ReadAsStringAsync(); }
+        catch (Exception e) when (e is HttpRequestException or IOException) { }
         var code = (int)resp.StatusCode;
         throw new HttpRequestException(
             $"LLM 请求失败: {code} {resp.ReasonPhrase} (model={model})\n{detail}");

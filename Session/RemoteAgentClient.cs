@@ -9,7 +9,7 @@ namespace WTangent.Server.Session;
 /// 危险命令确认沿用 ConfirmProvider（客户端进程的弹窗/委托），再 POST /confirm 回执。</summary>
 public sealed class RemoteAgentClient(Uri baseUrl) : IAgentClient
 {
-    private static readonly HttpClient _http = Http.Client;
+    private static readonly HttpClient Http = WTangent.Core.Http.Client;
     private string? _sessionId;
 
     public IAgentEvents? Events { get; set; }
@@ -20,7 +20,7 @@ public sealed class RemoteAgentClient(Uri baseUrl) : IAgentClient
         using var req = new HttpRequestMessage(HttpMethod.Post, new Uri(baseUrl, $"/session/{_sessionId}/ask"));
         req.Content = new StringContent(JsonSerializer.Serialize(new SsePayload { Text = prompt }), Encoding.UTF8, "application/json");
         req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
-        using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+        using var resp = await Http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
         resp.EnsureSuccessStatusCode();
 
         await using var stream = await resp.Content.ReadAsStreamAsync(ct);
@@ -53,6 +53,8 @@ public sealed class RemoteAgentClient(Uri baseUrl) : IAgentClient
                     break;
                 case SseEventType.Done:
                     return final;
+                default:
+                    break;
             }
         }
         return final;
@@ -65,13 +67,13 @@ public sealed class RemoteAgentClient(Uri baseUrl) : IAgentClient
         var allow = ConfirmProvider.Ask(payload.Prompt ?? "");
         using var req = new HttpRequestMessage(HttpMethod.Post, new Uri(baseUrl, "/confirm"));
         req.Content = new StringContent(JsonSerializer.Serialize(new ConfirmReply(payload.Id ?? "", allow), AgentProtocol.Json), Encoding.UTF8, "application/json");
-        await _http.SendAsync(req);
+        await Http.SendAsync(req);
     }
 
     private async Task<string> CreateSessionAsync(CancellationToken ct)
     {
         using var req = new HttpRequestMessage(HttpMethod.Post, new Uri(baseUrl, "/session"));
-        using var resp = await _http.SendAsync(req, ct);
+        using var resp = await Http.SendAsync(req, ct);
         resp.EnsureSuccessStatusCode();
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
         return doc.RootElement.GetProperty("session_id").GetString() ?? throw new InvalidOperationException("no session_id");

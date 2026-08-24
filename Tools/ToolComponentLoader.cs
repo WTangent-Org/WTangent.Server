@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Text.Json;
-using WTangent.Core;
 
 namespace WTangent.Server.Tools;
 
@@ -18,8 +17,8 @@ public static class ToolComponentLoader
     public static List<ITool> Load()
     {
         var result = new List<ITool>();
-        var app = Entry.App;   // 壳启动时已注入（StartAsync）
-        if (app is null || !Directory.Exists(ComponentsDir)) return result;
+        var app = Entry.App;   // 壳加载本组件时已构造注入（静态 Entry.App，契约保证非空）
+        if (!Directory.Exists(ComponentsDir)) return result;
         foreach (var dir in Directory.GetDirectories(ComponentsDir))
         {
             var manifestFile = Path.Combine(dir, "agent-component.json");
@@ -29,7 +28,7 @@ public static class ToolComponentLoader
                 if (File.Exists(manifestFile))
                     manifest = JsonSerializer.Deserialize<ManifestInfo>(File.ReadAllText(manifestFile), JsonOpts);
             }
-            catch { }
+            catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException) { }
             if (manifest is null) continue;
 
             var dll = Path.Combine(dir, manifest.Asset + ".dll");
@@ -40,8 +39,8 @@ public static class ToolComponentLoader
                 var entryType = asm.GetTypes().FirstOrDefault(t => t is { IsPublic: true, IsAbstract: false }
                     && typeof(IEntry).IsAssignableFrom(t));
                 if (entryType is null) continue;
-                var entry = (IEntry)Activator.CreateInstance(entryType)!;
-                entry.StartAsync(app).GetAwaiter().GetResult();
+                var entry = (IEntry)Activator.CreateInstance(entryType, app)!;   // 构造注入该组件的静态 Entry.App
+                entry.StartAsync().GetAwaiter().GetResult();
                 var tools = entry.Tools;
                 if (tools.Count > 0)
                 {
