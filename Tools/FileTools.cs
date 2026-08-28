@@ -83,10 +83,24 @@ public sealed class GlobTool : ITool
         if (!Directory.Exists(root)) return Task.FromResult($"[glob] 目录不存在: {root}");
         try
         {
-            const int maxFiles = 200;
-            var files = Directory.EnumerateFiles(root, pattern, new EnumerationOptions
+            // Windows searchPattern 不接受路径分隔符（**/*.cs 整串传入会直接抛参数错误）：
+            // 拆出目录前缀与文件名模式；前缀或模式含 ** → 递归，字面前缀 → 拼进扫描根
+            var prefix = pattern;
+            var search = "*";
+            var sep = pattern.LastIndexOfAny(['/', '\\']);
+            if (sep >= 0)
             {
-                RecurseSubdirectories = pattern.Contains("**"),
+                prefix = pattern[..sep];
+                search = pattern[(sep + 1)..];
+                if (search.Length == 0) search = "*";
+            }
+            var wildcardPrefix = prefix.Contains('*') || prefix.Contains('?');
+            var recurse = pattern.Contains("**") || wildcardPrefix;
+            var scanRoot = prefix.Length > 0 && !wildcardPrefix ? Path.Combine(root, prefix.Replace('\\', '/')) : root;
+            const int maxFiles = 200;
+            var files = Directory.EnumerateFiles(scanRoot, search, new EnumerationOptions
+            {
+                RecurseSubdirectories = recurse,
                 IgnoreInaccessible = true,
             }).Take(maxFiles);
             var list = files.Select(f => Path.GetRelativePath(root, f)).ToList();

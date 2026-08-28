@@ -36,7 +36,7 @@ public sealed class AgentService : ServiceBase
     protected override void OnStop()
     {
         _cts.Cancel();
-        _task?.Wait(TimeSpan.FromSeconds(10));
+        _task?.Wait(TimeSpan.FromSeconds(10));   // 同步边界：SCM 的 OnStop 是同步 API，必须等住再返回
     }
 
     protected override void OnShutdown() => OnStop();

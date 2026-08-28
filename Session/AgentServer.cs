@@ -41,6 +41,8 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             _pendingConfirms[id] = tcs;
             writer.Write(AgentProtocol.ConfirmReq(id, prompt));
+            // 同步边界：ConfirmProvider 契约是同步问询（LLM 工具循环内联等待用户确认），
+            // async 化需把确认流整体改造（IConfirm 异步化），此处刻意保持
             try { return tcs.Task.GetAwaiter().GetResult(); }
             finally { _pendingConfirms.TryRemove(id, out _); }
         };
