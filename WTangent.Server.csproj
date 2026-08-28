@@ -44,6 +44,7 @@
     <!-- ProjectReference 不经包的 buildTransitive props，生成器需要的属性这里手动声明（与包内 props 一致） -->
     <CompilerVisibleProperty Include="ProjectDir"/>
     <CompilerVisibleProperty Include="AssemblyName"/>
+    <CompilerVisibleProperty Include="ComponentDepends"/>
   </ItemGroup>
 
   <ItemGroup>
