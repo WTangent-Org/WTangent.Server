@@ -1,10 +1,19 @@
 namespace WTangent.Server.Tools;
 
-/// <summary>内置工具工厂：bash/background/文件/git/web/ref 等默认工具。
-/// web_search 按 Provider 判断（DeepSeek 官方端点支持原生搜索才暴露）。
-/// 组件扩展工具由 ToolComponentLoader 加载后拼接进 AgentOptions.Tools（必须显式组装）。</summary>
+/// <summary>LLM 工具组装入口（serve/服务两条路径共用）：All = 内置默认 + 组件扩展。
+/// 组件扩展工具由空壳启动时聚合注册进 App.Services（单实例单次启动），这里只取不扫。
+/// web_search 按 Provider 判断（DeepSeek 官方端点支持原生搜索才暴露）。</summary>
 public static class ServerTools
 {
+    /// <summary>全部工具 = 内置默认 + 组件扩展（Entry.Tools，经 App.Services 聚合）</summary>
+    public static List<ITool> All(ProviderConfig provider, bool? enableWebSearch = null)
+    {
+        var tools = Default(provider, enableWebSearch);
+        if (Entry.App.Services.Resolve<IReadOnlyList<ITool>>() is { Count: > 0 } extra)
+            tools.AddRange(extra);
+        return tools;
+    }
+
     /// <summary>内置工具（provider 决定 web_search 是否暴露；enableWebSearch 显式覆盖）</summary>
     public static List<ITool> Default(ProviderConfig provider, bool? enableWebSearch = null)
     {

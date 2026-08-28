@@ -24,8 +24,8 @@ public record AgentOptions
     public IEnumerable<ChatMessage>? InitialHistory { get; init; }
     /// <summary>所有工具（必须显式组装：ServerTools.Default() 内置 + 组件扩展；扩展点显式化）</summary>
     public required IReadOnlyList<ITool> Tools { get; init; }
-    /// <summary>工具索引（Name → ITool）</summary>
-    public Dictionary<string, ITool> ToolIndex => Tools.ToDictionary(t => t.Name);
+    /// <summary>工具索引（Name → ITool；field 缓存，只建一次）</summary>
+    public Dictionary<string, ITool> ToolIndex => field ??= Tools.ToDictionary(t => t.Name);
     /// <summary>是否流式输出（MessageDelta 事件），默认开</summary>
     public bool Stream { get; init; } = true;
     /// <summary>LLM 客户端（缺省用 Provider 构造真实实现；测试可注入假实现）</summary>
