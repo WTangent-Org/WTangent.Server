@@ -138,7 +138,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
                 }
                 case "GET" when path == "/config":
                 {
-                    WriteJson(ctx, 200, new { auto_optimize = ConfigStore.Load().AutoOptimize });
+                    WriteJson(ctx, 200, new { auto_optimize = AgentConfigStore.Load().AutoOptimize });
                     return;
                 }
                 case "POST" when path == "/config":
@@ -528,8 +528,8 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
             var body = await reader.ReadToEndAsync();
             var req = JsonSerializer.Deserialize<AutoOptimizeRequest>(body, JsonNoEscape);
             if (req is null) { WriteJson(ctx, 400, new { error = "bad body" }); return; }
-            var cfg = ConfigStore.Load();
-            ConfigStore.Save(cfg with { AutoOptimize = req.AutoOptimize });
+            var cfg = AgentConfigStore.Load();
+            AgentConfigStore.Save(cfg with { AutoOptimize = req.AutoOptimize });
             WriteJson(ctx, 200, new { ok = true, auto_optimize = req.AutoOptimize });
         }
         catch (Exception e) { WriteJson(ctx, 400, new { error = e.Message }); }
@@ -544,7 +544,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
         try
         {
             var repo = ProjectRepo(project);
-            if (!ConfigStore.Load().AutoOptimize)
+            if (!AgentConfigStore.Load().AutoOptimize)
             {
                 WriteJson(ctx, 200, new { ok = true, skipped = "auto_optimize disabled" });
                 return;

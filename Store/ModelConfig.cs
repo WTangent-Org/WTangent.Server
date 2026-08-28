@@ -8,7 +8,7 @@ internal static class ModelConfig
     {
         var given = new[] { url, apiKey, model }.Count(v => v is { Length: > 0 });
 
-        var cached = ConfigStore.LoadActive();
+        var cached = AgentConfigStore.LoadActive();
         if (cached == null)
         {
             if (given == 0)
@@ -35,8 +35,8 @@ internal static class ModelConfig
             Variants = variants ?? "Default",
         };
         // 写回缓存（缺字段用新值填，不写空）
-        var cfg = ConfigStore.Load();
-        ConfigStore.Save(cfg with
+        var cfg = AgentConfigStore.Load();
+        AgentConfigStore.Save(cfg with
         {
             Active = url!,
             Providers =

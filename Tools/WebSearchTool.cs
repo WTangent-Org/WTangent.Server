@@ -44,7 +44,7 @@ public sealed class WebSearchTool : ITool
     {
         var query = ToolArgs.GetString(arguments, "query");
         if (string.IsNullOrWhiteSpace(query)) return "[web_search] 缺少 query 参数";
-        var provider = ConfigStore.LoadActive();
+        var provider = AgentConfigStore.LoadActive();
         if (provider is null || string.IsNullOrEmpty(provider.ApiKey))
             return "[web_search] 未配置 API key（config.json 提供商缺少 ApiKey）";
         try
