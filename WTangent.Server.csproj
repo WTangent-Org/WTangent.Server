@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <PackageReference Include="McMaster.NETCore.Plugins" Version="2.0.0"/>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10"/>
     <PackageReference Include="System.CommandLine" Version="2.0.10"/>
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.10"/>
