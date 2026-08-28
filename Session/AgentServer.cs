@@ -51,7 +51,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
             listener.Start();
             Console.WriteLine($"[serve] listening on http://127.0.0.1:{port}");
             // 自动注册 local remote（本机回环）+ 写 serve.port（本机 serve 检测：TUI/run 默认连这里）
-            new ServerRegistry().Add("local", "127.0.0.1", port);
+            new ServerRegistry(store: Entry.App.Store).Add("local", "127.0.0.1", port);
             await File.WriteAllTextAsync(Path.Combine(AgentPaths.DataDir, "serve.port"), port.ToString(), ct);
             // 已有项目重写 post-receive hook（端口/启用状态变化后同步）
             foreach (var p in ListProjects()) WriteOptimizeHook(p);
@@ -132,7 +132,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
                 {
                     WriteJson(ctx, 200, new
                     {
-                        remotes = new ServerRegistry().List().Select(r => new { name = r.Name, url = r.Url }),
+                        remotes = new ServerRegistry(store: Entry.App.Store).List().Select(r => new { name = r.Name, url = r.Url }),
                     });
                     return;
                 }

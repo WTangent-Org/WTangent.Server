@@ -30,10 +30,20 @@
   </PropertyGroup>
 
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(WTangentLocal)' != 'true'">
     <!-- 共享包：源生成器（analyzers）+ 契约（lib/net10.0）一个包；
          ExcludeAssets=runtime：Core 由空壳运行时提供（单 ALC 统一），不拷进组件输出/zip，编译引用与生成器保留 -->
     <PackageReference Include="WTangent.Components" Version="0.0.11" PrivateAssets="all" ExcludeAssets="runtime"/>
+  </ItemGroup>
+
+  <!-- 本地开发开关（-p:WTangentLocal=true，配工作区根 dev-install.ps1）：直接引用 Core 源码 + 生成器项目，
+       绕过 nuget 等索引传播；Private=false 对应 ExcludeAssets=runtime（Core 由空壳提供，不拷进输出） -->
+  <ItemGroup Condition="'$(WTangentLocal)' == 'true'">
+    <ProjectReference Include="..\WTangent.Components\src\WTangent.Core\WTangent.Core.csproj" Private="false"/>
+    <ProjectReference Include="..\WTangent.Components\src\WTangent.Components\Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" Private="false"/>
+    <!-- ProjectReference 不经包的 buildTransitive props，生成器需要的属性这里手动声明（与包内 props 一致） -->
+    <CompilerVisibleProperty Include="ProjectDir"/>
+    <CompilerVisibleProperty Include="AssemblyName"/>
   </ItemGroup>
 
   <ItemGroup>
