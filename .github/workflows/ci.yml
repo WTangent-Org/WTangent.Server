@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: WTangent.Server
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -24,14 +26,14 @@ jobs:
           path: WTangent.Components
 
       - name: dotnet build（Release）
-        run: dotnet build WTangent.Server.csproj -c Release --nologo
+        run: dotnet build WTangent.Server/WTangent.Server.csproj -c Release --nologo
 
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
 
       - name: web build
-        working-directory: web
+        working-directory: WTangent.Server/web
         run: |
           npm ci --no-audit --no-fund
           npm run build
