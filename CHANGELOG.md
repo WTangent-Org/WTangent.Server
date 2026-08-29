@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.6.1](https://github.com/WTangent-Org/WTangent.Server/compare/v0.6.0...v0.6.1) (2026-08-29)
+
+
+### ✨ 新功能
+
+* App 静态属性构造注入（PCL-CE 式）：生成器产 static App + ctor，IEntry 移除 App 成员 ([4eb898b](https://github.com/WTangent-Org/WTangent.Server/commit/4eb898bd2828967d6ed6df2cbc5938503eda7413))
+* release.ps1 一键发版（触发→审批 PR CI→等合并→等 publish→等 nuget 索引） ([a0d7e20](https://github.com/WTangent-Org/WTangent.Server/commit/a0d7e209b5d512e02e66c4aa68af6ddf0ef53ed1))
+* 最终特性集 [AgentEntry(id,name,isAsync)]/[EntryStart]/[EntryStop]/[AgentCommand(parent)]/[AgentTool] ([e1bbc87](https://github.com/WTangent-Org/WTangent.Server/commit/e1bbc8731468656f2feb7c2119f7df85e8b6fab5))
+* 构造注入 App（无 null!）+ Current 静态桥（PCL-CE 式）；钩子实例方法，纯业务 ([4c8704e](https://github.com/WTangent-Org/WTangent.Server/commit/4c8704e6577c3a559ee40840c3f4adfa7638af28))
+
+
+### 🐛 修复
+
+* CI 布局——本仓 checkout 进同名子目录复刻本地工作区布局（ProjectReference 的 ../ 不再越出工作区），构建路径加前缀 ([9cfd4dd](https://github.com/WTangent-Org/WTangent.Server/commit/9cfd4dd6eb67c05259d077627fb7812724377842))
+* glob 工具支持跨目录模式（**/*.cs 整串传 searchPattern 在 Windows 直接抛参数错误）——拆目录前缀与文件名模式，** 递归、字面前缀拼扫描根；mock 脚本过时路径更新；删无引用的 Store/Components.cs；确认问询/SCM OnStop 两处同步边界补注释 ([a28a685](https://github.com/WTangent-Org/WTangent.Server/commit/a28a6858e807f65f5f839cd96e95ff3288027558))
+
+
+### 🧹 其他
+
+* Components 升 0.0.10（Application 移除 Logger/Config，统一走门面） ([c248578](https://github.com/WTangent-Org/WTangent.Server/commit/c2485785adb4a81188354641ff74691555f2d98b))
+* Components 升 0.0.11（StartAsync 无参）；R# 全量扫描修复；AGENTS.md 契约节同步 ([426e974](https://github.com/WTangent-Org/WTangent.Server/commit/426e974c89a8c8c996417b0a57877501ab75a865))
+* Components 升 0.0.9（ExcludeAssets=runtime）；agent-component.json 改由生成器产出；AGENTS.md 重写为现状 ([96ebad7](https://github.com/WTangent-Org/WTangent.Server/commit/96ebad75f03ee4e758fb685f9bcd208cebeeb339))
+* csproj nuget 组补 WTangentDev 条件（dev restore 直拉模式关闭包引用，引用由 wtangent.dev.props 注入） ([c436214](https://github.com/WTangent-Org/WTangent.Server/commit/c4362144fcc293c71a226b98a7b7023a9b889c33))
+* csproj 补 CompilerVisibleProperty ComponentDepends（本地模式手动声明，配套生成器 depends） ([c900198](https://github.com/WTangent-Org/WTangent.Server/commit/c9001982ac09ab3e3127fc41f9e23c3e1a900452))
+* OnStart 迁移到全局门面 Log.Info ([1cf6b79](https://github.com/WTangent-Org/WTangent.Server/commit/1cf6b79ac6ed959fd54d413cf3f022c0b797d494))
+* release-please 统一 always-bump-patch（版本只走 patch） ([9fcc4f7](https://github.com/WTangent-Org/WTangent.Server/commit/9fcc4f7c98c8df9e040933c6b596265171baf972))
+* 清残留——删 Store/PluginLoader.cs（旧架构遗留，引用不存在的老程序集名）；Server/Tui csproj 移除无引用的 McMaster.NETCore.Plugins ([e5b3602](https://github.com/WTangent-Org/WTangent.Server/commit/e5b3602e1b63458e90d6a2a7db007a60d343c46f))
+* 移除本地工具脚本（build/format/release.ps1 不进仓库） ([557c16a](https://github.com/WTangent-Org/WTangent.Server/commit/557c16a613ab711449422a08572b9dcce11fe46b))
+
 ## [0.6.0](https://github.com/WTangent-Org/WTangent.Server/compare/v0.5.0...v0.6.0) (2026-08-22)
 
 
