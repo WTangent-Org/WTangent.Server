@@ -1,1 +1,1 @@
-{ "name": "serve", "asset": "agent-server", "minCore": "0.0.10", "commands": ["register", "unregister", "serve"] }
+{ "name": "serve", "asset": "agent-server", "minCore": "0.0.11", "commands": ["register", "unregister", "serve"] }
