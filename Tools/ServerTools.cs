@@ -1,3 +1,5 @@
+using WTangent.Server.Tools.Mcp;
+
 namespace WTangent.Server.Tools;
 
 /// <summary>LLM 工具组装入口（serve/服务两条路径共用）：All = 内置默认 + 组件扩展。
@@ -11,6 +13,7 @@ public static class ServerTools
         var tools = Default(provider, enableWebSearch);
         if (Entry.App.Services.Resolve<IReadOnlyList<ITool>>() is { Count: > 0 } extra)
             tools.AddRange(extra);
+        tools.AddRange(McpBridge.Load());   // MCP 服务器工具（mcp.json；单服务器失败跳过）
         return tools;
     }
 

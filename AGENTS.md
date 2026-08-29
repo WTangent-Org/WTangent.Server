@@ -29,6 +29,7 @@
 
 - `wtangent install serve|tui|client|gui|git [--force]` / `wtangent remove|upgrade [name]`（缺省全部已装——**纯本地扫 `components\` 目录**；安装时写 `.installed` 元数据 repo+版本，remove/upgrade 不依赖索引）/ `wtangent update`（刷索引）/ 顶级 `wtangent` = 按索引优先级取第一个已装且带 Default 的组件（headless 反转：无桌面 tui 优先）。索引只是远程清单缓存，不代表已装状态。管理/开发命令（install/remove/upgrade/update/dev）启动时不加载组件（避免本进程锁 dll 导致删不动目录；跨进程锁由删除重试兜底）。组件开发工具：`wtangent dev restore|build|install`（见下）。
 - serve 参数：`[<host>] [<port>] [--projects] [--web] [--no-web] [--base-url] [--key] [--model] [--mock]`；Windows 服务：`--service`（SCM 注入）。
+- MCP 桥（`Tools/Mcp/`）：`mcp.json`（%APPDATA%gent）声明的 stdio 服务器在 serve 启动时连接，工具合并进 LLM 工具表（名 `mcp_{server}_{tool}`，单服务器失败跳过）；`wtangent mcp list|call` 手动验证不烧 token。
 - 重名命令仅官方组件（serve/tui/gui）可覆盖，其余跳过并提示。
 
 ## 发布（手动发版）
