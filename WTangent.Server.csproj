@@ -23,7 +23,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <!-- 版本号与 release tag 对齐；release-please 管理 -->
-    <Version>0.6.0</Version>
+    <Version>0.6.1</Version>
     <RootNamespace>WTangent.Server</RootNamespace>
     <AssemblyName>agent-server</AssemblyName>
   </PropertyGroup>
