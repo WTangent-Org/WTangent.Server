@@ -19,7 +19,7 @@ public sealed class WebSearchTool : ITool
     private const int MaxUses = 5;
     private const int MaxResults = 8;
 
-    public string Name => "web_search";
+    public string Name => "websearch";
 
     public object Definition => new
     {
@@ -27,7 +27,11 @@ public sealed class WebSearchTool : ITool
         function = new
         {
             name = Name,
-            description = "联网搜索（走 DeepSeek 原生搜索，每次消耗一次模型调用）。返回相关网页的 url/title/snippet。需要最新信息、外部资料、或代码库外的事实核查时使用。",
+            description = @"联网搜索，返回 url/title/snippet 列表（走 DeepSeek 原生搜索，每次消耗一次模型调用）。
+
+Tips:
+- 需要最新信息、外部资料或代码库外的事实核查时使用；结果要全文用 webfetch 抓取。
+- 查询词写具体，别一次塞多个主题。",
             parameters = new
             {
                 type = "object",

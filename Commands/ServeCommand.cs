@@ -78,7 +78,7 @@ public sealed class ServeCommand : Command
             // 工具显式组装：内置默认 + 组件扩展（tool 组件，Entry.Tools）
             Tools = [.. ServerTools.All(provider, mock ? false : null)],
             Llm = mock ? new FakeLlmClient(
-                scriptedToolCalls: ["glob **/*.cs", "read_file Program.cs", "bash 1..10 | ForEach-Object { 'line ' + $_ }"],
+                scriptedToolCalls: ["glob **/*.cs", "read Program.cs", "bash 1..10 | ForEach-Object { 'line ' + $_ }"],
                 finalText: ["## 结论\n\nserve mock 回复。\n"]) : null,
         };
         return new AgentServer(opts, port > 0 ? port : 8890, projects, host ?? "127.0.0.1", noWeb ? null : web ?? AgentServer.FindWebDir());
@@ -109,7 +109,7 @@ public sealed class ServeCommand : Command
             // 工具显式组装：内置默认 + 组件扩展（tool 组件，Entry.Tools）
             Tools = [.. ServerTools.All(provider, mock ? false : null)],
             Llm = mock ? new FakeLlmClient(
-                scriptedToolCalls: ["glob **/*.cs", "read_file Program.cs", "bash 1..10 | ForEach-Object { 'line ' + $_ }"],
+                scriptedToolCalls: ["glob **/*.cs", "read Program.cs", "bash 1..10 | ForEach-Object { 'line ' + $_ }"],
                 finalText: ["## 结论\n\nserve mock 回复。\n"]) : null,
         };
         var webDir = noWeb ? null : web ?? AgentServer.FindWebDir();

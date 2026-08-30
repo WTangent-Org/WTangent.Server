@@ -37,7 +37,13 @@ public sealed class BashTool : ITool
         function = new
         {
             name = Name,
-            description = "执行 shell 命令。重要：当前环境是 Windows，使用 PowerShell 语法（不是 bash）。PowerShell 不识别 head/tail/ls/grep/cat/pwd 等 bash 命令，请用对应 PowerShell 命令：ls→Get-ChildItem、cat→Get-Content、grep→Select-String、pwd→Get-Location、head/tail→Select-Object -First/-Last。返回命令输出。",
+            description = @"执行 shell 命令并返回输出（[exit code] 前缀 + stdout/stderr）。
+
+Tips:
+- 当前环境是 Windows，用 PowerShell 语法：ls→Get-ChildItem、cat→Get-Content、grep→Select-String、head/tail→Select-Object -First/-Last。
+- run_in_background=true 适合长任务（dev server/构建），立即返回 PID，用 bash_output 查输出、kill_shell 终止。
+- 危险命令（删除/格式化/关机类）会触发用户确认。
+- 操作项目文件时传 cwd 项目目录，避免落错位置。".Replace("\r\n", "\r\n"),
             parameters = new
             {
                 type = "object",
@@ -46,7 +52,8 @@ public sealed class BashTool : ITool
                     command = new { type = "string", description = "要执行的 shell 命令" },
                     cwd = new { type = "string", description = "工作目录（缺省 serve 进程目录；操作项目时传项目目录）" },
                     timeout = new { type = "integer", description = "超时毫秒数（缺省 60000，0=不超时）" },
-                    background = new { type = "boolean", description = "true=后台运行，立即返回 PID；之后用 background 工具查状态/杀" },
+                    run_in_background = new { type = "boolean", description = "true=后台运行，立即返回 PID；输出用 bash_output 查、终止用 kill_shell" },
+                    description = new { type = "string", description = "命令的一句话用途（5-10 词，后台任务展示用），可省" },
                     input = new { type = "string", description = "命令启动后写入 stdin（交互式命令用），可省" },
                 },
                 required = new[] { "command" },
@@ -64,8 +71,8 @@ public sealed class BashTool : ITool
         // timeout：显式提供才使用（0=不超时），否则默认 60s
         var timeoutStr = ToolArgs.GetString(arguments, "timeout");
         var timeoutMs = timeoutStr.Length > 0 && int.TryParse(timeoutStr, out var t) ? t : 60_000;
-        // background：true 则后台运行，立即返回 PID
-        if (bool.TryParse(ToolArgs.GetString(arguments, "background"), out var bg) && bg)
+        // run_in_background：true 则后台运行，立即返回 PID
+        if (bool.TryParse(ToolArgs.GetString(arguments, "run_in_background"), out var bg) && bg)
             return RunBackground(command, cwd);
         // input：命令启动后写入 stdin（交互式），不关闭
         var input = ToolArgs.GetString(arguments, "input");

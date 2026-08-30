@@ -9,7 +9,7 @@ public sealed partial class WebFetchTool : ITool
 {
     private const int MaxOutputChars = 20_000;
 
-    public string Name => "web_fetch";
+    public string Name => "webfetch";
 
     public object Definition => new
     {
@@ -17,7 +17,11 @@ public sealed partial class WebFetchTool : ITool
         function = new
         {
             name = Name,
-            description = "抓取指定 HTTP(S) URL 的页面内容并转为文本（配合 web_search 使用：搜索结果需要全文时抓取具体 URL）。返回状态码 + 文本内容（超出截断）。",
+            description = @"抓取 HTTP(S) URL 页面并转为文本（状态码 + 内容，超长截断）。
+
+Tips:
+- 配合 websearch：对搜索结果的 URL 抓全文。
+- 站点可能反爬或超时，失败信息会带原因。",
             parameters = new
             {
                 type = "object",

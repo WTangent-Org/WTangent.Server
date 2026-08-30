@@ -22,8 +22,9 @@ public static class ServerTools
     {
         var tools = new List<ITool>
         {
-            new BashTool(), new BackgroundTool(), new ReadFileTool(), new GlobTool(), new GrepTool(),
-            new EditFileTool(), new GitCommitTool(), new WebFetchTool(), new RefSearchTool(),
+            new BashTool(), new BashOutputTool(), new KillShellTool(), new ReadFileTool(), new GlobTool(),
+            new GrepTool(), new EditFileTool(), new WriteTool(), new GitCommitTool(), new WebFetchTool(),
+            new RefSearchTool(),
         };
         var webSearch = enableWebSearch
             ?? provider.BaseUrl.Contains("api.deepseek.com", StringComparison.OrdinalIgnoreCase);
