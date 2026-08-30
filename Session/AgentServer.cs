@@ -16,7 +16,7 @@ namespace WTangent.Server.Session;
 /// GET /projects（列项目）、POST /projects/{project}/branch?name=（切换用户分支）、POST /projects/{project}/push?name=（checkout 上 pull→提交→push）；
 /// POST /backup/{project}（手动 backup 推送）；/git/{project}.git/* 走 git http-backend（首次 push 自动建 bare，HEAD=main）。
 /// host=0.0.0.0 映射 HttpListener 通配 "+"（局域网绑定需 urlacl）；webRoot 非空时 GET 回退托管静态文件（Vue WUI）。</summary>
-public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir = null, string host = "127.0.0.1", string? webRoot = null)
+public sealed partial class AgentServer(AgentOptions opts, int port, string? projectsDir = null, string host = "127.0.0.1", string? webRoot = null)
 {
     private readonly string _projectsDir = projectsDir ?? Path.Combine(AgentPaths.DataDir, "projects");
     private readonly SessionStore _store = new();
@@ -24,8 +24,8 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
     private readonly ConcurrentDictionary<string, bool> _activeTurns = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _turnCts = new();
     private readonly ConcurrentDictionary<string, SseWriter> _activeWriters = new();
-    private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingConfirms = new();
-    private readonly ConcurrentDictionary<string, TaskCompletionSource<string>> _pendingQuestions = new();
+    private readonly PendingReplies _replies = new();
+    private RouteTable _routes = null!;   // StartAsync 早期即初始化
     private readonly ConcurrentDictionary<string, bool> _optimizing = new();   // 正在自动优化的项目（防重入）
     private Task? _pendingTurn;   // WS 会话当前进行中的轮次（HandleWs finally 等待后 Dispose bridge，防竞态）
     private static readonly AsyncLocal<string?> CurrentSession = new();
@@ -33,34 +33,24 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
 
     public async Task StartAsync(CancellationToken ct = default)
     {
+        _routes = Routes.Build(this);
         // 危险命令确认：推 confirm_req 到当前会话的事件桥（WS/SSE 双通道），阻塞等 POST /confirm 或 WS answer 回执。
         // 修复：原实现只写 SSE writer，WS 会话的确认请求不可达（静默拒绝）
         ConfirmProvider.Confirm = prompt =>
         {
             var sessionId = CurrentSession.Value;
-            if (sessionId == null || !_sessions.TryGetValue(sessionId, out var agent) || agent.Events is null) return false;
-            var id = Guid.NewGuid().ToString("N")[..8];
-            var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _pendingConfirms[id] = tcs;
-            agent.Events.OnConfirmReq(id, prompt);
-            // 同步边界：ConfirmProvider 契约是同步问询（LLM 工具循环内联等待用户确认），
-            // async 化需把确认流整体改造（IConfirm 异步化），此处刻意保持
-            try { return tcs.Task.GetAwaiter().GetResult(); }
-            finally { _pendingConfirms.TryRemove(id, out _); }
+            return sessionId != null && _sessions.TryGetValue(sessionId, out var agent) && agent.Events is not null
+                ? _replies.WaitConfirm(Guid.NewGuid().ToString("N")[..8], id => agent.Events.OnConfirmReq(id, prompt))
+                : false;
         };
         // 结构化提问（askuser 工具）：推 question_req 到事件桥，等 POST /question 或 WS answer 回执
         QuestionProvider.Ask = spec =>
         {
             var sessionId = CurrentSession.Value;
-            if (sessionId == null || !_sessions.TryGetValue(sessionId, out var agent) || agent.Events is null) return null;
-            var id = Guid.NewGuid().ToString("N")[..8];
-            var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _pendingQuestions[id] = tcs;
+            if (sessionId == null || !_sessions.TryGetValue(sessionId, out var agent) || agent.Events is null) return null; // 无交互通道:工具向 LLM 报告并自行决策
             var optionsJson = System.Text.Json.JsonSerializer.Serialize(spec.Options, AgentProtocol.Json);
-            agent.Events.OnQuestionReq(id, spec.Question, spec.Header, optionsJson);
-            // 同步边界：与 ConfirmProvider 同理，工具循环内联等待用户回答
-            try { return tcs.Task.GetAwaiter().GetResult(); }
-            finally { _pendingQuestions.TryRemove(id, out _); }
+            return _replies.WaitQuestion(Guid.NewGuid().ToString("N")[..8],
+                id => agent.Events.OnQuestionReq(id, spec.Question, spec.Header, optionsJson));
         };
         try
         {
@@ -97,144 +87,52 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
         try
         {
             if (ctx.Request.HttpMethod == "OPTIONS") { ctx.Response.StatusCode = 204; ctx.Response.Close(); return; }
-            switch (ctx.Request.HttpMethod)
-            {
-                case "GET" when path == "/health":
-                {
-                    lock (_sessionLock)
-                    {
-                        WriteJson(ctx, 200, new { ok = true, sessions = _sessions.Count });
-                    }
-
-                    return;
-                }
-                case "GET" when path == "/projects":
-                {
-                    WriteJson(ctx, 200, new { projects = ListProjects() });
-                    return;
-                }
-                case "GET" when path == "/sessions":
-                {
-                    WriteJson(ctx, 200, new
-                    {
-                        sessions = _store.ListSessions().Select(s =>
-                        {
-                            TokenUsage? usage = null;
-                            lock (_sessionLock)
-                                if (_sessions.TryGetValue(s.Id, out var a))
-                                    usage = a.Usage.Total;
-                            return new
-                            {
-                                id = s.Id,
-                                title = s.Title,
-                                count = s.Count,
-                                input_tokens = usage?.InputTokens ?? 0,
-                                output_tokens = usage?.OutputTokens ?? 0,
-                                cache_hit_tokens = usage?.CacheReadTokens ?? 0,
-                            };
-                        }),
-                    });
-                    return;
-                }
-                case "GET" when path.StartsWith("/session/", StringComparison.Ordinal)
-                    && path.EndsWith("/messages", StringComparison.Ordinal):
-                {
-                    var id = path["/session/".Length..^"/messages".Length];
-                    WriteJson(ctx, 200, new
-                    {
-                        messages = _store.LoadMessages(id).Select(m => new { role = m.Role.ToString().ToLowerInvariant(), content = m.Content }),
-                    });
-                    return;
-                }
-                case "GET" when path == "/remotes":
-                {
-                    WriteJson(ctx, 200, new
-                    {
-                        remotes = new ServerRegistry(store: Entry.App.Store).List().Select(r => new { name = r.Name, url = r.Url }),
-                    });
-                    return;
-                }
-                case "GET" when path == "/config":
-                {
-                    WriteJson(ctx, 200, new { auto_optimize = AgentConfigStore.Load().AutoOptimize });
-                    return;
-                }
-                case "POST" when path == "/config":
-                {
-                    await HandleConfig(ctx);
-                    return;
-                }
-                case "POST" when path.StartsWith("/optimize/", StringComparison.Ordinal):
-                {
-                    await HandleOptimize(ctx, path["/optimize/".Length..]);
-                    return;
-                }
-                case "GET" when path.StartsWith("/ws/", StringComparison.Ordinal):
-                {
-                    await HandleWs(ctx, path["/ws/".Length..], ct);
-                    return;
-                }
-                case "POST" when path.StartsWith("/projects/", StringComparison.Ordinal)
-                    && path.EndsWith("/push", StringComparison.Ordinal):
-                {
-                    HandleProjectPush(ctx, path["/projects/".Length..^"/push".Length]);
-                    return;
-                }
-                case "POST" when path.StartsWith("/projects/", StringComparison.Ordinal)
-                    && path.EndsWith("/branch", StringComparison.Ordinal):
-                {
-                    HandleBranch(ctx, path["/projects/".Length..^"/branch".Length]);
-                    return;
-                }
-                case "POST" when path == "/session":
-                {
-                    var id = _store.NewSession("");   // SQLite 持久化（重启后可列可续聊），返回长 id
-                    lock (_sessionLock) _sessions[id] = new AgentCore(opts);
-                    WriteJson(ctx, 200, new { session_id = id });
-                    return;
-                }
-                case "POST" when path.StartsWith("/session/", StringComparison.Ordinal):
-                {
-                    var rest = path["/session/".Length..];
-                    const string askSuffix = "/ask";
-                    if (!rest.EndsWith(askSuffix, StringComparison.Ordinal))
-                    {
-                        WriteJson(ctx, 400, new { error = "unknown endpoint" });
-                        return;
-                    }
-                    await HandleAsk(ctx, rest[..^askSuffix.Length], ct);
-                    return;
-                }
-                case "POST" when path == "/confirm":
-                    await HandleConfirm(ctx);
-                    return;
-                case "POST" when path == "/question":
-                    await HandleQuestion(ctx);
-                    return;
-                case "POST" when path == "/git-exec":
-                    // 远程 git 执行（GitCmd --server）：在服务端项目目录跑 git，返回输出/退出码
-                    await HandleGitExec(ctx);
-                    return;
-                default:
-                    if (path.StartsWith("/git/", StringComparison.Ordinal))
-                    {
-                        await HandleGit(ctx, ct);
-                        return;
-                    }
-                    if (ctx.Request.HttpMethod == "GET")
-                    {
-                        await HandleStatic(ctx, path);
-                        return;
-                    }
-                    WriteJson(ctx, 404, new { error = "not found" });
-                    break;
-            }
+            if (_routes.TryRoute(ctx.Request.HttpMethod ?? "", path, ctx, ct)) return;
+            WriteJson(ctx, 404, new { error = "not found" });
         }
         catch (Exception e)
         {
             WriteJson(ctx, 500, new { error = e.Message });
         }
     }
+
+    /// <summary>取会话：内存有则返回；无则从 SQLite 恢复历史建 AgentCore（续聊/断线重连），并注册进内存表。
+    /// 返回 null 表示会话不存在（SQLite 也没有）。</summary>
+    /// <summary>会话列表(含各会话令牌用量)。</summary>
+    internal void HandleSessions(HttpListenerContext ctx)
+    {
+        WriteJson(ctx, 200, new
+        {
+            sessions = _store.ListSessions().Select(s =>
+            {
+                TokenUsage? usage = null;
+                lock (_sessionLock)
+                    if (_sessions.TryGetValue(s.Id, out var a))
+                        usage = a.Usage.Total;
+                return new
+                {
+                    id = s.Id,
+                    title = s.Title,
+                    count = s.Count,
+                    input_tokens = usage?.InputTokens ?? 0,
+                    output_tokens = usage?.OutputTokens ?? 0,
+                    cache_hit_tokens = usage?.CacheReadTokens ?? 0,
+                };
+            }),
+        });
+    }
+
+    /// <summary>新建会话(SQLite 持久化,返回长 id)。</summary>
+    internal void HandleSessionCreate(HttpListenerContext ctx)
+    {
+        var id = _store.NewSession("");
+        lock (_sessionLock) _sessions[id] = new AgentCore(opts);
+        WriteJson(ctx, 200, new { session_id = id });
+    }
+
+    internal Lock Gate => _sessionLock;
+    internal int SessionCount { get { lock (_sessionLock) return _sessions.Count; } }
+    internal SessionStore Store => _store;
 
     /// <summary>取会话：内存有则返回；无则从 SQLite 恢复历史建 AgentCore（续聊/断线重连），并注册进内存表。
     /// 返回 null 表示会话不存在（SQLite 也没有）。</summary>
@@ -282,8 +180,8 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
     }
 
     /// <summary>WebSocket 流式对话：/ws/{sessionId}。客户端 ask/cancel/confirm 双向；服务端事件桥接写回 socket。
-    /// 单会话同时只允许一个进行中轮次；cancel 只取消本轮（不关 socket）；confirm 与 POST /confirm 共用 _pendingConfirms。</summary>
-    private async Task HandleWs(HttpListenerContext ctx, string sessionId, CancellationToken ct)
+    /// 单会话同时只允许一个进行中轮次；cancel 只取消本轮（不关 socket）；confirm/question 回执走 PendingReplies。</summary>
+    internal async Task HandleWs(HttpListenerContext ctx, string sessionId, CancellationToken ct)
     {
         if (!ctx.Request.IsWebSocketRequest) { WriteJson(ctx, 400, new { error = "websocket upgrade required" }); return; }
         var agent = GetOrCreateAgent(sessionId);
@@ -291,7 +189,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
 
         var wsCtx = await ctx.AcceptWebSocketAsync(null);
         var ws = wsCtx.WebSocket;
-        CurrentSession.Value = sessionId;   // 危险命令确认桥接：ConfirmProvider → _pendingConfirms（SSE/WS 共用）
+        CurrentSession.Value = sessionId;   // 危险命令确认桥接：ConfirmProvider → PendingReplies（SSE/WS 共用）
         var bridge = new WsEventsBridge(ws, ct);   // 非 using：闭包可能引用，finally 里 await 轮次结束后显式 Dispose
         agent.Events = bridge;
         try
@@ -327,11 +225,11 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
                         if (_turnCts.TryGetValue(sessionId, out var turn)) await turn.CancelAsync();
                         break;
                     case "confirm" when env.Id is { Length: > 0 }:
-                        if (_pendingConfirms.TryRemove(env.Id, out var tcs)) tcs.TrySetResult(env.Allow == true);
+                        _replies.CompleteConfirm(env.Id, env.Allow == true);
                         break;
                     case "answer" when env.Id is { Length: > 0 }:
                         // askuser 回执：selected = 选项 label（自由输入则为文本）
-                        if (_pendingQuestions.TryRemove(env.Id, out var q)) q.TrySetResult(env.Selected ?? "");
+                        _replies.CompleteQuestion(env.Id, env.Selected ?? "");
                         break;
                 }
             }
@@ -371,7 +269,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
         }, turnCts.Token);
     }
 
-    private async Task HandleAsk(HttpListenerContext ctx, string sessionId, CancellationToken ct)
+    internal async Task HandleAsk(HttpListenerContext ctx, string sessionId, CancellationToken ct)
     {
         var agent = GetOrCreateAgent(sessionId);
         if (agent == null)
@@ -412,40 +310,34 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
         }
     }
 
-    private async Task HandleConfirm(HttpListenerContext ctx)
+    internal async Task HandleConfirm(HttpListenerContext ctx)
     {
         using var reader = new StreamReader(ctx.Request.InputStream, Encoding.UTF8);
         var body = await reader.ReadToEndAsync();
         ConfirmReply? reply;
         try { reply = JsonSerializer.Deserialize<ConfirmReply>(body, AgentProtocol.Json); }
         catch { WriteJson(ctx, 400, new { error = "invalid body" }); return; }
-        if (reply != null && _pendingConfirms.TryRemove(reply.Id, out var tcs))
-        {
-            tcs.TrySetResult(reply.Allow);
+        if (reply?.Id is { Length: > 0 } && _replies.CompleteConfirm(reply.Id, reply.Allow == true))
             WriteJson(ctx, 200, new { ok = true });
-        }
         else WriteJson(ctx, 404, new { error = "confirm id not found" });
     }
 
     /// <summary>askuser 回执：POST /question {id, selected}（与 WS answer 等价；selected = 选项 label 或自由文本）</summary>
-    private async Task HandleQuestion(HttpListenerContext ctx)
+    internal async Task HandleQuestion(HttpListenerContext ctx)
     {
         using var reader = new StreamReader(ctx.Request.InputStream, Encoding.UTF8);
         var body = await reader.ReadToEndAsync();
         WsEnvelope? reply;
         try { reply = JsonSerializer.Deserialize<WsEnvelope>(body, AgentProtocol.Json); }
         catch { WriteJson(ctx, 400, new { error = "invalid body" }); return; }
-        if (reply?.Id is { Length: > 0 } && _pendingQuestions.TryRemove(reply.Id, out var tcs))
-        {
-            tcs.TrySetResult(reply.Selected ?? "");
+        if (reply?.Id is { Length: > 0 } && _replies.CompleteQuestion(reply.Id, reply.Selected ?? ""))
             WriteJson(ctx, 200, new { ok = true });
-        }
         else WriteJson(ctx, 404, new { error = "question id not found" });
     }
 
     /// <summary>远程 git 执行：POST /git-exec {project, args[]} → 在服务端项目目录跑 git → {exit_code, output}。
     /// GitCmd 组件的 --server 模式调用（客户端触发服务端执行）。</summary>
-    private async Task HandleGitExec(HttpListenerContext ctx)
+    internal async Task HandleGitExec(HttpListenerContext ctx)
     {
         using var reader = new StreamReader(ctx.Request.InputStream);
         var body = await reader.ReadToEndAsync();
@@ -472,7 +364,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
     /// <summary>git smart HTTP：/git/{project}/{path} 转发给 git http-backend。
     /// **目录即仓库**：首次 push（receive-pack）自动建普通仓库（git init -b main + receive.denyCurrentBranch=updateInstead，
     /// 推 main 即更新服务器工作树）；项目不存在且非 push → 404。</summary>
-    private async Task HandleGit(HttpListenerContext ctx, CancellationToken ct)
+    internal async Task HandleGit(HttpListenerContext ctx, CancellationToken ct)
     {
         Directory.CreateDirectory(_projectsDir);
         var path = ctx.Request.Url!.AbsolutePath;          // /git/{project}/info/refs
@@ -553,7 +445,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
             await Console.Error.WriteLineAsync($"[git http-backend {project}] exit {p.ExitCode}: {await p.StandardError.ReadToEndAsync(ct)}");
     }
     /// <summary>项目列表：projects 目录下含 .git 的普通仓库（目录即仓库）</summary>
-    private List<string> ListProjects() =>
+    internal List<string> ListProjects() =>
         !Directory.Exists(_projectsDir)
             ? []
             : [.. Directory.GetDirectories(_projectsDir)
@@ -561,7 +453,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
                 .Select(d => Path.GetFileName(d))];
 
     /// <summary>WUI 设置：写 config.json 的 auto_optimize（POST /config，body {"auto_optimize": bool}）</summary>
-    private static async Task HandleConfig(HttpListenerContext ctx)
+    internal async Task HandleConfig(HttpListenerContext ctx)
     {
         try
         {
@@ -580,7 +472,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
 
     /// <summary>收到 git push 后自动优化（POST /optimize/{project}，由项目 post-receive hook 触发）：
     /// config auto_optimize 开 → 起 AgentCore 会话，审查最新提交、做简单优化、git commit；关 → 直接跳过（省 token）。</summary>
-    private async Task HandleOptimize(HttpListenerContext ctx, string project)
+    internal async Task HandleOptimize(HttpListenerContext ctx, string project)
     {
         try
         {
@@ -658,7 +550,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
         || GitRunIn(repo, "switch", "-c", branch, "main").ExitCode == 0;
 
     /// <summary>WUI/API 切换用户分支（多用户协作：每人一个开发分支 + main；直接操作项目目录）</summary>
-    private void HandleBranch(HttpListenerContext ctx, string project)
+    internal void HandleBranch(HttpListenerContext ctx, string project)
     {
         var user = ctx.Request.QueryString["name"];
         try
@@ -673,7 +565,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
 
     /// <summary>提交（目录即仓库，**全自动交给 agent**）：add -A + commit 当前分支所有改动（含用户 push 进来的，下一轮一起交）。
     /// ?msg= 由 agent 提供 Conventional Commits 消息（type 按改动定），缺省 chore({项目}): {时间}。先不管多用户/分支。</summary>
-    private void HandleProjectPush(HttpListenerContext ctx, string project)
+    internal void HandleProjectPush(HttpListenerContext ctx, string project)
     {
         try
         {
@@ -694,7 +586,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
             : throw new InvalidOperationException($"项目 {project} 不存在（先由客户端 git push 创建）");
 
     /// <summary>静态托管（Vue WUI dist）：GET 回退到 webRoot；SPA 路由回退 index.html。</summary>
-    private async Task HandleStatic(HttpListenerContext ctx, string path)
+    internal async Task HandleStatic(HttpListenerContext ctx, string path)
     {
         if (webRoot is null || !Directory.Exists(webRoot)) { WriteJson(ctx, 404, new { error = "not found" }); return; }
         var rel = path == "/" ? "index.html" : path.TrimStart('/');
@@ -772,7 +664,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    private static void WriteJson(HttpListenerContext ctx, int status, object obj)
+    internal static void WriteJson(HttpListenerContext ctx, int status, object obj)
     {
         var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(obj, JsonNoEscape));
         ctx.Response.StatusCode = status;
