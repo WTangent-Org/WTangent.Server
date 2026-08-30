@@ -5,7 +5,7 @@ using WTangent.Server.Store;
 
 namespace WTangent.Server.Tools;
 
-/// <summary>网络搜索工具：web_search。走 DeepSeek 官方 Anthropic 兼容端点（/anthropic/v1/messages）的原生
+/// <summary>网络搜索工具：websearch。走 DeepSeek 官方 Anthropic 兼容端点（/anthropic/v1/messages）的原生
 /// web_search_20250305 server tool——复用 config.json 里已有 API key，无第三方依赖。
 /// 每次搜索消耗一次模型调用（token），结果返回 url/title/snippet 列表。</summary>
 public sealed class WebSearchTool : ITool

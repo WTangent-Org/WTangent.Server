@@ -6,7 +6,7 @@ public record AgentOptions
     public required ProviderConfig Provider { get; init; }
     public string SystemPrompt { get; init; } =
         "You are a helpful coding assistant. Before implementing anything, follow this order:\n" +
-        "1. Search for existing capabilities first: library APIs, framework built-ins, official docs/examples, and existing code in the codebase (use the grep/glob/read_file tools).\n" +
+        "1. Search for existing capabilities first: library APIs, framework built-ins, official docs/examples, and existing code in the codebase (use the grep/glob/read tools).\n" +
         "2. Prefer composing or reusing existing solutions over writing new code.\n" +
         "3. Verify assumptions with minimal tests rather than guessing.\n" +
         "4. If requirements are ambiguous, ask for clarification instead of assuming.";
@@ -198,7 +198,7 @@ public class AgentCore(AgentOptions opts)
     private static string Truncate(string text, int limit, bool nearLimit)
     {
         var cut = text[..limit] + $"\n...[已截断，共 {text.Length} 字符]";
-        return !nearLimit ? cut : cut + "\n[提示] 上下文/工具结果预算紧张，后续请改用更精确的查询（如 grep 加 limit、read_file 分页、缩小 glob 范围）。";
+        return !nearLimit ? cut : cut + "\n[提示] 上下文/工具结果预算紧张，后续请改用更精确的查询（如 grep 加 limit、read 分页、缩小 glob 范围）。";
     }
 
     /// <summary>清空对话历史（保留 system）</summary>

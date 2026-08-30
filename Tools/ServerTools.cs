@@ -4,7 +4,7 @@ namespace WTangent.Server.Tools;
 
 /// <summary>LLM 工具组装入口（serve/服务两条路径共用）：All = 内置默认 + 组件扩展。
 /// 组件扩展工具由空壳启动时聚合注册进 App.Services（单实例单次启动），这里只取不扫。
-/// web_search 按 Provider 判断（DeepSeek 官方端点支持原生搜索才暴露）。</summary>
+/// websearch 按 Provider 判断（DeepSeek 官方端点支持原生搜索才暴露）。</summary>
 public static class ServerTools
 {
     /// <summary>全部工具 = 内置默认 + 组件扩展（Entry.Tools，经 App.Services 聚合）</summary>
@@ -17,7 +17,7 @@ public static class ServerTools
         return tools;
     }
 
-    /// <summary>内置工具（provider 决定 web_search 是否暴露；enableWebSearch 显式覆盖）</summary>
+    /// <summary>内置工具（provider 决定 websearch 是否暴露；enableWebSearch 显式覆盖）</summary>
     public static List<ITool> Default(ProviderConfig provider, bool? enableWebSearch = null)
     {
         var tools = new List<ITool>
