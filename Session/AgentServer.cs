@@ -25,6 +25,7 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _turnCts = new();
     private readonly ConcurrentDictionary<string, SseWriter> _activeWriters = new();
     private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingConfirms = new();
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<string>> _pendingQuestions = new();
     private readonly ConcurrentDictionary<string, bool> _optimizing = new();   // 正在自动优化的项目（防重入）
     private Task? _pendingTurn;   // WS 会话当前进行中的轮次（HandleWs finally 等待后 Dispose bridge，防竞态）
     private static readonly AsyncLocal<string?> CurrentSession = new();
@@ -32,19 +33,34 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
 
     public async Task StartAsync(CancellationToken ct = default)
     {
-        // 危险命令确认：推 confirm_req 到当前会话的 SSE 流，阻塞等 POST /confirm 回执
+        // 危险命令确认：推 confirm_req 到当前会话的事件桥（WS/SSE 双通道），阻塞等 POST /confirm 或 WS answer 回执。
+        // 修复：原实现只写 SSE writer，WS 会话的确认请求不可达（静默拒绝）
         ConfirmProvider.Confirm = prompt =>
         {
             var sessionId = CurrentSession.Value;
-            if (sessionId == null || !_activeWriters.TryGetValue(sessionId, out var writer)) return false;
+            if (sessionId == null || !_sessions.TryGetValue(sessionId, out var agent) || agent.Events is null) return false;
             var id = Guid.NewGuid().ToString("N")[..8];
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             _pendingConfirms[id] = tcs;
-            writer.Write(AgentProtocol.ConfirmReq(id, prompt));
+            agent.Events.OnConfirmReq(id, prompt);
             // 同步边界：ConfirmProvider 契约是同步问询（LLM 工具循环内联等待用户确认），
             // async 化需把确认流整体改造（IConfirm 异步化），此处刻意保持
             try { return tcs.Task.GetAwaiter().GetResult(); }
             finally { _pendingConfirms.TryRemove(id, out _); }
+        };
+        // 结构化提问（askuser 工具）：推 question_req 到事件桥，等 POST /question 或 WS answer 回执
+        QuestionProvider.Ask = spec =>
+        {
+            var sessionId = CurrentSession.Value;
+            if (sessionId == null || !_sessions.TryGetValue(sessionId, out var agent) || agent.Events is null) return null;
+            var id = Guid.NewGuid().ToString("N")[..8];
+            var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pendingQuestions[id] = tcs;
+            var optionsJson = System.Text.Json.JsonSerializer.Serialize(spec.Options, AgentProtocol.Json);
+            agent.Events.OnQuestionReq(id, spec.Question, spec.Header, optionsJson);
+            // 同步边界：与 ConfirmProvider 同理，工具循环内联等待用户回答
+            try { return tcs.Task.GetAwaiter().GetResult(); }
+            finally { _pendingQuestions.TryRemove(id, out _); }
         };
         try
         {
@@ -192,6 +208,9 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
                 case "POST" when path == "/confirm":
                     await HandleConfirm(ctx);
                     return;
+                case "POST" when path == "/question":
+                    await HandleQuestion(ctx);
+                    return;
                 case "POST" when path == "/git-exec":
                     // 远程 git 执行（GitCmd --server）：在服务端项目目录跑 git，返回输出/退出码
                     await HandleGitExec(ctx);
@@ -310,6 +329,10 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
                     case "confirm" when env.Id is { Length: > 0 }:
                         if (_pendingConfirms.TryRemove(env.Id, out var tcs)) tcs.TrySetResult(env.Allow == true);
                         break;
+                    case "answer" when env.Id is { Length: > 0 }:
+                        // askuser 回执：selected = 选项 label（自由输入则为文本）
+                        if (_pendingQuestions.TryRemove(env.Id, out var q)) q.TrySetResult(env.Selected ?? "");
+                        break;
                 }
             }
         }
@@ -402,6 +425,22 @@ public sealed class AgentServer(AgentOptions opts, int port, string? projectsDir
             WriteJson(ctx, 200, new { ok = true });
         }
         else WriteJson(ctx, 404, new { error = "confirm id not found" });
+    }
+
+    /// <summary>askuser 回执：POST /question {id, selected}（与 WS answer 等价；selected = 选项 label 或自由文本）</summary>
+    private async Task HandleQuestion(HttpListenerContext ctx)
+    {
+        using var reader = new StreamReader(ctx.Request.InputStream, Encoding.UTF8);
+        var body = await reader.ReadToEndAsync();
+        WsEnvelope? reply;
+        try { reply = JsonSerializer.Deserialize<WsEnvelope>(body, AgentProtocol.Json); }
+        catch { WriteJson(ctx, 400, new { error = "invalid body" }); return; }
+        if (reply?.Id is { Length: > 0 } && _pendingQuestions.TryRemove(reply.Id, out var tcs))
+        {
+            tcs.TrySetResult(reply.Selected ?? "");
+            WriteJson(ctx, 200, new { ok = true });
+        }
+        else WriteJson(ctx, 404, new { error = "question id not found" });
     }
 
     /// <summary>远程 git 执行：POST /git-exec {project, args[]} → 在服务端项目目录跑 git → {exit_code, output}。
@@ -759,6 +798,9 @@ public sealed class SseEventsBridge(SseWriter writer) : IAgentEvents
     public void OnReasoningDelta(string delta) => writer.Write(AgentProtocol.ReasoningDelta(delta));
     public void OnToolStart(string name, string arguments) => writer.Write(AgentProtocol.ToolStart(name, arguments));
     public void OnToolEnd(string name, string result) => writer.Write(AgentProtocol.ToolEnd(name, result));
+    public void OnConfirmReq(string id, string prompt) => writer.Write(AgentProtocol.ConfirmReq(id, prompt));
+    public void OnQuestionReq(string id, string question, string header, string optionsJson) =>
+        writer.Write(AgentProtocol.QuestionReq(id, question, header, optionsJson, multiSelect: false));
 }
 
 /// <summary>把 AgentCore 事件回调桥接为 WebSocket 写入：Channel 队列 + 单泵线程，保证发送顺序与并发安全
@@ -780,6 +822,9 @@ public sealed class WsEventsBridge : IAgentEvents, IDisposable
     public void OnReasoningDelta(string delta) => Enqueue(new WsEnvelope { Type = "reasoning_delta", Text = delta });
     public void OnToolStart(string name, string arguments) => Enqueue(new WsEnvelope { Type = "tool_start", Name = name, Arguments = arguments });
     public void OnToolEnd(string name, string result) => Enqueue(new WsEnvelope { Type = "tool_end", Name = name, Result = result });
+    public void OnConfirmReq(string id, string prompt) => Enqueue(new WsEnvelope { Type = "confirm_req", Id = id, Prompt = prompt });
+    public void OnQuestionReq(string id, string question, string header, string optionsJson) =>
+        Enqueue(new WsEnvelope { Type = "question_req", Id = id, Text = question, Name = header, Options = optionsJson });
 
     /// <summary>一轮完成（final_text），随后 done</summary>
     public void TurnEnd(string? final) => Enqueue(new WsEnvelope { Type = "turn_end", FinalText = final });
