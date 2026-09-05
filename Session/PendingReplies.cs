@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using WTangent.Core;
 
 namespace WTangent.Server.Session;
 
@@ -38,4 +39,17 @@ public sealed class PendingReplies
     /// <summary>回执回答(WS answer / POST /question)。id 不存在返回 false。</summary>
     public bool CompleteQuestion(string id, string selected) =>
         _questions.TryRemove(id, out var tcs) && tcs.TrySetResult(selected);
+}
+
+/// <summary>AgentServer 侧扩展:把"会话查找+通道判断"也收进管道,调用点一行化。</summary>
+internal static class PendingRepliesExt
+{
+    /// <summary>确认流完整链:查会话→推 confirm_req→阻塞等回执。无会话/无事件桥返回 false。</summary>
+    public static bool WaitConfirmFor(this PendingReplies replies, string? sessionId,
+        Dictionary<string, AgentCore> sessions, string prompt,
+        Action<AgentCore, string> push)
+    {
+        if (sessionId == null || !sessions.TryGetValue(sessionId, out var agent) || agent.Events is null) return false;
+        return replies.WaitConfirm(System.Guid.NewGuid().ToString("N")[..8], id => push(agent, id));
+    }
 }

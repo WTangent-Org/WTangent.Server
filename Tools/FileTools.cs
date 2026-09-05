@@ -9,32 +9,12 @@ public sealed class ReadFileTool : ITool
 {
     public string Name => "read";
 
-    public object Definition => new
-    {
-        type = "function",
-        function = new
-        {
-            name = Name,
-            description = @"读取文件内容，返回带行号的文本（cat -n 格式）。
-
-Tips:
-- 支持 offset（起始行，1 起）与 limit（行数）分页读取大文件。
-- 内容搜索请用 grep，文件名查找请用 glob，目录列表用 bash（Get-ChildItem）。
-- 文件不存在或路径非法会返回错误，不会中断会话。
-- 只能读文本文件；二进制文件请用 bash 对应工具。".Replace("\r\n", "\n"),
-            parameters = new
-            {
-                type = "object",
-                properties = new
-                {
-                    path = new { type = "string", description = "文件路径（相对或绝对）" },
-                    offset = new { type = "integer", description = "起始行号（1 起），可省" },
-                    limit = new { type = "integer", description = "最多读取行数，可省" },
-                },
-                required = new[] { "path" },
-            },
-        },
-    };
+        public object Definition => ToolSpec.Create("read",
+            "读取文件内容，返回带行号的文本（cat -n 格式）。\n\nTips:\n- 支持 offset（起始行，1 起）与 limit（行数）分页读取大文件。\n- 内容搜索请用 grep，文件名查找请用 glob，目录列表用 bash（Get-ChildItem）。\n- 文件不存在或路径非法会返回错误，不会中断会话。\n- 只能读文本文件；二进制文件请用 bash 对应工具。")
+        .Required("path", "string", "文件路径（相对或绝对）")
+        .Param("offset", "integer", "起始行号（1 起），可省")
+        .Param("limit", "integer", "最多读取行数，可省")
+        .Build();
 
     public Task<string> RunAsync(string arguments, CancellationToken ct = default)
     {
@@ -63,30 +43,11 @@ public sealed class GlobTool : ITool
 {
     public string Name => "glob";
 
-    public object Definition => new
-    {
-        type = "function",
-        function = new
-        {
-            name = Name,
-            description = @"按 glob 模式查找文件，返回相对路径列表。
-
-Tips:
-- 模式支持 ** 跨目录递归（如 **/*.cs）与字面目录前缀（如 src/*.ts）。
-- path 为起始目录（缺省当前目录）；结果最多 200 个，超出会截断提示。
-- 按内容搜索请用 grep。".Replace("\r\n", "\n"),
-            parameters = new
-            {
-                type = "object",
-                properties = new
-                {
-                    pattern = new { type = "string", description = "glob 模式，如 **/*.cs" },
-                    path = new { type = "string", description = "起始目录，可省" },
-                },
-                required = new[] { "pattern" },
-            },
-        },
-    };
+        public object Definition => ToolSpec.Create("glob",
+            "按 glob 模式查找文件，返回相对路径列表。\n\nTips:\n- 模式支持 ** 跨目录递归（如 **/*.cs）与字面目录前缀（如 src/*.ts）。\n- path 为起始目录（缺省当前目录）；结果最多 200 个，超出会截断提示。\n- 按内容搜索请用 grep。")
+        .Required("pattern", "string", "glob 模式，如 **/*.cs")
+        .Param("path", "string", "起始目录，可省")
+        .Build();
 
     public Task<string> RunAsync(string arguments, CancellationToken ct = default)
     {
@@ -136,35 +97,16 @@ public sealed class GrepTool : ITool
 {
     public string Name => "grep";
 
-    public object Definition => new
-    {
-        type = "function",
-        function = new
-        {
-            name = Name,
-            description = @"在目录内按正则搜索文件内容。
-
-Tips:
-- 输出 文件:行号:匹配行；output_mode=count 每文件匹配数；files_with_matches 只列文件名。
-- context 为每个匹配附加的前后行数；include 过滤文件名（如 *.cs）。
-- 找文件名用 glob；读文件用 read。递归全目录、跳过隐藏/系统文件。".Replace("\r\n", "\n"),
-            parameters = new
-            {
-                type = "object",
-                properties = new
-                {
-                    pattern = new { type = "string", description = "正则表达式" },
-                    path = new { type = "string", description = "起始目录，可省" },
-                    include = new { type = "string", description = "文件名过滤器，如 *.cs，可省" },
-                    case_insensitive = new { type = "boolean", description = "忽略大小写（缺省 true）" },
-                    context = new { type = "integer", description = "每个匹配附带的前后行数，可省" },
-                    output_mode = new { type = "string", description = "content（缺省）| count | files_with_matches" },
-                    limit = new { type = "integer", description = "最多返回匹配数，缺省 50" },
-                },
-                required = new[] { "pattern" },
-            },
-        },
-    };
+        public object Definition => ToolSpec.Create("grep",
+            "在目录内按正则搜索文件内容。\n\nTips:\n- 输出 文件:行号:匹配行；output_mode=count 每文件匹配数；files_with_matches 只列文件名。\n- context 为每个匹配附加的前后行数；include 过滤文件名（如 *.cs）。\n- 找文件名用 glob；读文件用 read。递归全目录、跳过隐藏/系统文件。")
+        .Required("pattern", "string", "正则表达式")
+        .Param("path", "string", "起始目录，可省")
+        .Param("include", "string", "文件名过滤器，如 *.cs，可省")
+        .Param("case_insensitive", "boolean", "忽略大小写（缺省 true）")
+        .Param("context", "integer", "每个匹配附带的前后行数，可省")
+        .Param("output_mode", "string", "content（缺省）| count | files_with_matches")
+        .Param("limit", "integer", "最多返回匹配数，缺省 50")
+        .Build();
 
     public Task<string> RunAsync(string arguments, CancellationToken ct = default)
     {
@@ -245,32 +187,13 @@ public sealed class EditFileTool : ITool
 {
     public string Name => "edit";
 
-    public object Definition => new
-    {
-        type = "function",
-        function = new
-        {
-            name = Name,
-            description = @"精确替换文件中的文本。
-
-Tips:
-- old_string 必须与文件内容**精确一致**（含缩进/空白）；在文件中不唯一时会报错，此时扩大上下文或用 replace_all。
-- replace_all=true 替换全部出现（适合重命名标识符）。
-- 新建文件用 write；追加内容可让 old_string 锚定文件结尾。".Replace("\r\n", "\n"),
-            parameters = new
-            {
-                type = "object",
-                properties = new
-                {
-                    path = new { type = "string", description = "文件路径" },
-                    old_string = new { type = "string", description = "被替换的原文（精确匹配）" },
-                    new_string = new { type = "string", description = "替换后的新文本（可为空串=删除）" },
-                    replace_all = new { type = "boolean", description = "替换全部出现（缺省 false，仅替换唯一一处）" },
-                },
-                required = new[] { "path", "old_string", "new_string" },
-            },
-        },
-    };
+        public object Definition => ToolSpec.Create("edit",
+            "精确替换文件中的文本。\n\nTips:\n- old_string 必须与文件内容**精确一致**（含缩进/空白）；不唯一时报错，此时扩大上下文或用 replace_all。\n- replace_all=true 替换全部出现（适合重命名标识符）。\n- 新建文件用 write；追加内容可让 old_string 锚定文件结尾。")
+        .Required("path", "string", "文件路径")
+        .Required("old_string", "string", "被替换的原文（精确匹配）")
+        .Required("new_string", "string", "替换后的新文本（可为空串=删除）")
+        .Param("replace_all", "boolean", "替换全部出现（缺省 false，仅替换唯一一处）")
+        .Build();
 
     public Task<string> RunAsync(string arguments, CancellationToken ct = default)
     {

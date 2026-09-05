@@ -36,13 +36,13 @@ public sealed partial class AgentServer(AgentOptions opts, int port, string? pro
         _routes = Routes.Build(this);
         // 危险命令确认：推 confirm_req 到当前会话的事件桥（WS/SSE 双通道），阻塞等 POST /confirm 或 WS answer 回执。
         // 修复：原实现只写 SSE writer，WS 会话的确认请求不可达（静默拒绝）
-        ConfirmProvider.Confirm = prompt =>
+        ConfirmProvider.Confirm = prompt => ConfirmViaBridge(prompt);
+
+        bool ConfirmViaBridge(string prompt)
         {
-            var sessionId = CurrentSession.Value;
-            return sessionId != null && _sessions.TryGetValue(sessionId, out var agent) && agent.Events is not null
-                ? _replies.WaitConfirm(Guid.NewGuid().ToString("N")[..8], id => agent.Events.OnConfirmReq(id, prompt))
-                : false;
-        };
+            return _replies.WaitConfirmFor(CurrentSession.Value, _sessions, prompt,
+                (agent, id) => agent.Events.OnConfirmReq(id, prompt));
+        }
         // 结构化提问（askuser 工具）：推 question_req 到事件桥，等 POST /question 或 WS answer 回执
         QuestionProvider.Ask = spec =>
         {
